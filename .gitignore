@@ -1,0 +1,33 @@
+# --- Segreti: MAI versionati (docs/14 §3) ---
+**/.env
+!**/.env.example
+!**/.env.production.example
+platform-backend/storage/keys/
+*.pem
+*.tfvars
+!*.tfvars.example
+
+# --- Dipendenze e artefatti (rigenerabili) ---
+platform-backend/vendor/
+platform-mobile/apps/client_app/build/
+platform-mobile/apps/client_app/.dart_tool/
+**/node_modules/
+
+# --- Database e log locali ---
+platform-backend/storage/*.key
+platform-backend/database/*.sqlite
+platform-backend/storage/logs/*.log
+platform-backend/storage/framework/cache/data/*
+platform-backend/storage/framework/sessions/*
+platform-backend/storage/framework/views/*.php
+**/*.tfstate
+**/*.tfstate.*
+.terraform/
+
+# --- Screenshot di analisi (riferimento, non codice) ---
+.screens-analysis/
+
+# --- macOS / editor ---
+.DS_Store
+.idea/
+.vscode/

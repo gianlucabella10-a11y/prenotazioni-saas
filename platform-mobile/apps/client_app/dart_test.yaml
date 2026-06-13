@@ -1,0 +1,5 @@
+# Test tags. The e2e suite self-skips when TENANT_KEY is not provided via
+# --dart-define (see test/e2e/booking_e2e_test.dart), so a plain
+# `flutter test` never needs the backend.
+tags:
+  e2e:

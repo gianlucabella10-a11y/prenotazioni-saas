@@ -1,0 +1,32 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(php -v)",
+      "Bash(composer --version)",
+      "Bash(flutter --version)",
+      "Bash(brew --version)",
+      "Bash(sw_vers)",
+      "Bash(xcode-select -p)",
+      "Read(//usr/local/**)",
+      "Bash(sudo -n true)",
+      "Bash(echo \"sudo-exit:$?\")",
+      "Bash(curl -sI --max-time 10 https://getcomposer.org)",
+      "Bash(echo \"curl-exit:$?\")",
+      "Bash(mkdir -p /Users/gianlucabella/.local/php-toolchain/bin)",
+      "Read(//Users/gianlucabella/.local/**)",
+      "Bash(curl -sL --max-time 300 -o php.tar.gz \"https://dl.static-php.dev/static-php-cli/common/php-8.3-cli-macos-aarch64.tar.gz\")",
+      "Bash(tar -xzf php.tar.gz -C bin)",
+      "Bash(./bin/php -v)",
+      "Bash(curl -sI \"https://dl.static-php.dev/static-php-cli/common/php-8.3-cli-macos-aarch64.tar.gz\")",
+      "Bash(curl -sL --max-time 30 \"https://dl.static-php.dev/static-php-cli/common/\")",
+      "Bash(rm -f php.tar.gz)",
+      "Bash(curl -sL --max-time 300 -o php.tar.gz \"https://dl.static-php.dev/static-php-cli/common/php-8.4.22-cli-macos-aarch64.tar.gz\")",
+      "Bash(chmod +x bin/php)",
+      "Bash(./bin/php -m)",
+      "Bash(curl -sL --max-time 120 -o composer.phar https://getcomposer.org/download/latest-stable/composer.phar)",
+      "Bash(./php composer.phar --version)",
+      "Bash(printf '#!/bin/sh\\\\nexec \"%s/php\" \"%s/composer.phar\" \"$@\"\\\\n' /Users/gianlucabella/.local/php-toolchain/bin /Users/gianlucabella/.local/php-toolchain/bin)",
+      "Bash(chmod +x composer)"
+    ]
+  }
+}

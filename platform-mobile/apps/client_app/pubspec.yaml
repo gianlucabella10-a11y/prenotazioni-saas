@@ -1,0 +1,47 @@
+name: client_app
+description: "White label booking client app — one codebase, every tenant. The build pipeline injects tenant identity via --dart-define (docs/27)."
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.12.2
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+
+  # State management (docs/23 §5: explicit states, DI via providers).
+  flutter_riverpod: ^3.2.0
+
+  # Routing with auth/config-aware redirects.
+  go_router: ^17.2.5
+
+  # Networking with interceptors (JWT refresh single-flight).
+  dio: ^5.9.1
+
+  # Token persistence in Keychain/Keystore (docs/26 §3).
+  flutter_secure_storage: ^10.3.1
+
+  # White label config cache (offline-safe ETag revalidation).
+  shared_preferences: ^2.5.4
+
+  # Locale-aware date formatting (slot times, appointment cards).
+  intl: any
+
+  # Idempotency keys for booking submissions (docs/25 §6).
+  uuid: ^4.5.2
+
+  # Legal links (privacy/terms/support) opened in the system browser.
+  url_launcher: ^6.3.1
+  sentry_flutter: ^8.14.2
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true

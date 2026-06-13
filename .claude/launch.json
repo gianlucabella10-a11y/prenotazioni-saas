@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "client-app-web",
+      "runtimeExecutable": "/Users/gianlucabella/.local/php-toolchain/bin/php",
+      "runtimeArgs": ["-S", "127.0.0.1:4280", "-t", "platform-mobile/apps/client_app/build/web"],
+      "port": 4280
+    }
+  ]
+}

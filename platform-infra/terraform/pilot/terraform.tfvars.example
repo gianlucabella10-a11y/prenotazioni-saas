@@ -1,0 +1,26 @@
+# ---------------------------------------------------------------------------
+# Valori da compilare per l'apply del pilota. Copiare in `terraform.tfvars`
+# (gitignored) e riempire. I segreti NON vanno committati.
+# ---------------------------------------------------------------------------
+
+# Dominio del backend/dashboard: dopo l'apply, punta il record A all'EIP
+# in output (app_public_ip).
+app_domain = "api.tuodominio.it"
+
+# Dominio mittente delle email (di norma il dominio radice).
+ses_domain = "tuodominio.it"
+
+# Chiave pubblica SSH per il deploy (contenuto di ~/.ssh/id_ed25519.pub).
+ssh_public_key = "ssh-ed25519 AAAA... tua-chiave"
+
+# Solo il TUO IP pubblico /32 può fare SSH (mai 0.0.0.0/0). Trova l'IP con:
+#   curl -s https://checkip.amazonaws.com
+admin_cidr = "203.0.113.10/32"
+
+# Password del database applicativo, generata, min 20 caratteri. Genera con:
+#   openssl rand -base64 24
+db_password = "GENERA-UNA-PASSWORD-LUNGA"
+
+# Opzionali (hanno default sensati):
+# aws_region    = "eu-south-1"  # Milano (data residency UE)
+# instance_type = "t4g.small"
