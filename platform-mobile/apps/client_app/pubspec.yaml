@@ -36,7 +36,7 @@ dependencies:
 
   # Legal links (privacy/terms/support) opened in the system browser.
   url_launcher: ^6.3.1
-  sentry_flutter: ^8.14.2
+  sentry_flutter: ^9.22.0   # 9.x: compatibilità con Xcode 26 (la 8.x non compila)
 
 dev_dependencies:
   flutter_test:
