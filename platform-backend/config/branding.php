@@ -33,4 +33,8 @@ return [
 
     // WCAG AA threshold for normal text (docs/05 RF-12).
     'minimum_contrast_ratio' => 4.5,
+
+    // Disco di storage per gli asset di brand (logo, ecc.): 'public' in
+    // sviluppo, 's3' in produzione (override con BRANDING_ASSET_DISK).
+    'asset_disk' => env('BRANDING_ASSET_DISK', 'public'),
 ];

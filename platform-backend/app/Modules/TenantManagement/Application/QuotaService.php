@@ -15,13 +15,11 @@ use App\Modules\TenantManagement\Infrastructure\Models\Subscription;
  */
 final readonly class QuotaService
 {
-    public function __construct(private CurrentTenant $currentTenant)
-    {
-    }
+    public function __construct(private CurrentTenant $currentTenant) {}
 
     /**
-     * @param string $quotaKey e.g. max_staff, max_locations, max_services
-     * @param int $currentCount the tenant's current usage of the resource
+     * @param  string  $quotaKey  e.g. max_staff, max_locations, max_services
+     * @param  int  $currentCount  the tenant's current usage of the resource
      */
     public function assertWithinQuota(string $quotaKey, int $currentCount): void
     {

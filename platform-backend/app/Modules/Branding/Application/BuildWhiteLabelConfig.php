@@ -16,9 +16,7 @@ use App\Modules\Catalog\Infrastructure\Models\Location;
  */
 final readonly class BuildWhiteLabelConfig
 {
-    public function __construct(private CurrentTenant $currentTenant)
-    {
-    }
+    public function __construct(private CurrentTenant $currentTenant) {}
 
     /** @return array{etag: string, payload: array<string, mixed>} */
     public function execute(): array

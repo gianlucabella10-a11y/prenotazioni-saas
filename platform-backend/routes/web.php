@@ -9,6 +9,10 @@ use App\Modules\Dashboard\Http\Controllers\HomeController;
 use App\Modules\Dashboard\Http\Controllers\ServicesController;
 use App\Modules\Dashboard\Http\Controllers\StaffController;
 use App\Modules\Dashboard\Http\Controllers\WebAuthController;
+use App\Modules\ControlRoom\Http\Controllers\ControlRoomAuthController;
+use App\Modules\ControlRoom\Http\Controllers\TenantBrandController;
+use App\Modules\ControlRoom\Http\Controllers\TenantInviteController;
+use App\Modules\ControlRoom\Http\Controllers\TenantsController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -78,5 +82,46 @@ Route::prefix('dashboard')->group(function (): void {
             Route::put('/personalizzazione/brand', [BrandingController::class, 'updateBrand'])->name('dashboard.branding.brand');
             Route::put('/personalizzazione/contatti', [BrandingController::class, 'updateContacts'])->name('dashboard.branding.contacts');
         });
+    });
+});
+
+/*
+|--------------------------------------------------------------------------
+| Control Room — pannello proprietario super-admin (SOLO interno)
+|--------------------------------------------------------------------------
+| Superficie isolata dal dashboard cliente: guard `admin` dedicata +
+| middleware `control.admin`. Nessun tenant_admin/staff/customer entra qui.
+*/
+Route::prefix('control-room')->group(function (): void {
+    Route::middleware('guest:admin')->group(function (): void {
+        Route::get('/login', [ControlRoomAuthController::class, 'showLogin'])->name('control.login');
+        Route::post('/login', [ControlRoomAuthController::class, 'login'])
+            ->middleware('throttle:auth')->name('control.login.post');
+
+        Route::get('/mfa', [ControlRoomAuthController::class, 'showMfaChallenge'])->name('control.mfa.challenge');
+        Route::post('/mfa', [ControlRoomAuthController::class, 'verifyMfa'])
+            ->middleware('throttle:auth')->name('control.mfa.verify');
+        Route::get('/mfa/setup', [ControlRoomAuthController::class, 'showMfaSetup'])->name('control.mfa.setup');
+        Route::post('/mfa/setup', [ControlRoomAuthController::class, 'confirmMfaSetup'])
+            ->middleware('throttle:auth')->name('control.mfa.confirm');
+    });
+
+    Route::middleware(['auth:admin', 'control.admin'])->group(function (): void {
+        Route::post('/logout', [ControlRoomAuthController::class, 'logout'])->name('control.logout');
+
+        Route::get('/', [TenantsController::class, 'index'])->name('control.home');
+        Route::get('/clienti', [TenantsController::class, 'index'])->name('control.tenants.index');
+        Route::get('/clienti/nuovo', [TenantsController::class, 'create'])->name('control.tenants.create');
+        Route::post('/clienti', [TenantsController::class, 'store'])->name('control.tenants.store');
+        Route::get('/clienti/{uuid}', [TenantsController::class, 'show'])->name('control.tenants.show');
+        Route::post('/clienti/{uuid}/sospendi', [TenantsController::class, 'suspend'])->name('control.tenants.suspend');
+        Route::post('/clienti/{uuid}/riattiva', [TenantsController::class, 'reactivate'])->name('control.tenants.reactivate');
+        Route::post('/clienti/{uuid}/attiva', [TenantsController::class, 'activate'])->name('control.tenants.activate');
+
+        Route::post('/clienti/{uuid}/invito/rigenera', [TenantInviteController::class, 'regenerate'])->name('control.tenants.invite.regenerate');
+        Route::post('/clienti/{uuid}/invito/revoca', [TenantInviteController::class, 'revoke'])->name('control.tenants.invite.revoke');
+
+        Route::put('/clienti/{uuid}/brand', [TenantBrandController::class, 'update'])->name('control.tenants.brand');
+        Route::post('/clienti/{uuid}/logo', [TenantBrandController::class, 'uploadLogo'])->name('control.tenants.logo');
     });
 });

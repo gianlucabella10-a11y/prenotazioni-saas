@@ -38,10 +38,17 @@ return Application::configure(basePath: dirname(__DIR__))
             'verified' => \App\Foundation\Http\Middleware\EnsureEmailVerified::class,
             'tenant.dashboard' => \App\Modules\Dashboard\Http\Middleware\BindDashboardTenant::class,
             'owner' => \App\Modules\Dashboard\Http\Middleware\RequireOwner::class,
+            'control.admin' => \App\Modules\ControlRoom\Http\Middleware\EnsureSuperAdmin::class,
         ]);
 
-        $middleware->redirectGuestsTo('/dashboard/login');
-        $middleware->redirectUsersTo('/dashboard/home');
+        // Redirect path-aware: la Control Room ha i propri entrypoint guest/auth,
+        // completamente separati dal dashboard professionista.
+        $middleware->redirectGuestsTo(fn (Request $request): string => $request->is('control-room', 'control-room/*')
+            ? route('control.login')
+            : '/dashboard/login');
+        $middleware->redirectUsersTo(fn (Request $request): string => $request->is('control-room', 'control-room/*')
+            ? route('control.home')
+            : '/dashboard/home');
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         // Crash reporting (condizione GO-beta): no-op finché SENTRY_LARAVEL_DSN

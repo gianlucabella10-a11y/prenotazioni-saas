@@ -4,10 +4,8 @@ declare(strict_types=1);
 
 namespace App\Modules\TenantManagement\Presentation\Controllers;
 
-use App\Foundation\Audit\AuditLogger;
-use App\Foundation\Http\ApiException;
 use App\Foundation\Tenancy\CurrentTenant;
-use App\Foundation\Tenancy\TenantRegistry;
+use App\Modules\TenantManagement\Application\ChangeTenantStatus;
 use App\Modules\TenantManagement\Application\ProvisionTenant;
 use App\Modules\TenantManagement\Domain\TenantStatus;
 use App\Modules\TenantManagement\Infrastructure\Models\Tenant;
@@ -17,8 +15,9 @@ use Illuminate\Routing\Controller;
 
 /**
  * Super-admin tenant lifecycle (docs/25 §5): provisioning, listing,
- * suspension/reactivation per Flusso 9. Every state change invalidates the
- * tenant registry cache and is audit-logged.
+ * suspension/reactivation per Flusso 9. La transizione di stato è delegata
+ * a ChangeTenantStatus, condivisa con la Control Room (unico punto di
+ * verità: stessa validazione, stessa invalidazione cache, stesso audit).
  */
 final class AdminTenantController extends Controller
 {
@@ -82,32 +81,7 @@ final class AdminTenantController extends Controller
 
     private function transition(Request $request, string $uuid, TenantStatus $target, string $auditAction): JsonResponse
     {
-        /** @var CurrentTenant $currentTenant */
-        $currentTenant = app(CurrentTenant::class);
-
-        $tenant = $currentTenant->bypass(
-            fn (): ?Tenant => Tenant::query()->where('uuid', $uuid)->first()
-        );
-
-        if ($tenant === null) {
-            throw ApiException::notFound('tenant');
-        }
-
-        if (! $tenant->status->canTransitionTo($target)) {
-            throw ApiException::unprocessable(
-                'invalid_tenant_transition',
-                "A tenant in status '{$tenant->status->value}' cannot move to '{$target->value}'.",
-            );
-        }
-
-        $tenant->forceFill([
-            'status' => $target,
-            'suspended_at' => $target === TenantStatus::Suspended ? now() : null,
-        ])->save();
-
-        app(TenantRegistry::class)->forget($tenant->id);
-
-        app(AuditLogger::class)->log($auditAction, $request->user()->id, [], $tenant->id, Tenant::class, $tenant->id);
+        $tenant = app(ChangeTenantStatus::class)->execute($uuid, $target, $auditAction, $request->user()->id);
 
         return response()->json(['data' => $this->serialize($tenant)]);
     }

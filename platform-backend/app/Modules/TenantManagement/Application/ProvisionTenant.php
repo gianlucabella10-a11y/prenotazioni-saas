@@ -35,16 +35,16 @@ final readonly class ProvisionTenant
         private CurrentTenant $currentTenant,
         private Config $config,
         private AuditLogger $audit,
-    ) {
-    }
+        private IssueTenantInvite $invite,
+    ) {}
 
     /**
      * @param array{
      *     legal_name: string, display_name: string, sector: string,
      *     timezone: string, locale: string, plan_code: string,
-     *     app_name: string, admin_email: string, health_data?: bool
+     *     app_name: string, admin_email: string, health_data?: bool,
+     *     phone?: ?string, address?: ?string
      * } $input
-     *
      * @return array{tenant: Tenant, admin: User, invite_token: string}
      */
     public function execute(array $input, int $actorUserId): array
@@ -111,7 +111,7 @@ final readonly class ProvisionTenant
                     'email_verified_at' => now(),
                 ]);
 
-                $inviteToken = $this->createInviteToken($admin);
+                $inviteToken = $this->invite->forUser($admin);
 
                 return ['tenant' => $tenant, 'admin' => $admin, 'invite_token' => $inviteToken];
             });
@@ -129,7 +129,7 @@ final readonly class ProvisionTenant
         return $result;
     }
 
-    /** @param array{display_name: string, timezone: string} $input */
+    /** @param array{display_name: string, timezone: string, phone?: ?string, address?: ?string} $input */
     private function createDefaultLocation(Tenant $tenant, array $input): Location
     {
         $defaults = $this->config->get('booking.defaults');
@@ -140,6 +140,8 @@ final readonly class ProvisionTenant
             'timezone' => $input['timezone'],
             'status' => 'active',
             ...$defaults,
+            'address' => $input['address'] ?? null,
+            'phone' => $input['phone'] ?? null,
         ]);
 
         foreach ($this->config->get('booking.default_weekly_schedule') as $rule) {
@@ -186,18 +188,5 @@ final readonly class ProvisionTenant
 
             $location->services()->attach($service->id, ['tenant_id' => $tenant->id]);
         }
-    }
-
-    /** Invitation token: the admin sets the password on first access. */
-    private function createInviteToken(User $admin): string
-    {
-        $token = Str::random(64);
-
-        $this->db->table('password_reset_tokens')->updateOrInsert(
-            ['email' => $admin->email],
-            ['token' => hash('sha256', $token), 'created_at' => now()],
-        );
-
-        return $token;
     }
 }
