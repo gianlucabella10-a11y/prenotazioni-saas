@@ -44,5 +44,15 @@ void main() {
         base.textTheme.bodyMedium!.fontSize! * 1.5,
       );
     });
+
+    test('font_style (App Factory template) maps to a curated family', () {
+      final oswald =
+          AppThemeBuilder.build(BrandTheme.fallback(), fontStyle: 'oswald');
+      final poppins =
+          AppThemeBuilder.build(BrandTheme.fallback(), fontStyle: 'poppins');
+
+      expect(oswald.textTheme.bodyMedium!.fontFamily, 'Oswald');
+      expect(poppins.textTheme.titleLarge!.fontFamily, 'Poppins');
+    });
   });
 }

@@ -43,6 +43,13 @@
             @endforeach
         </select>
 
+        <label for="template_code">Template app</label>
+        <select id="template_code" name="template_code">
+            @foreach ($templates as $code => $tpl)
+                <option value="{{ $code }}" @selected(old('template_code', 'default') === $code)>{{ $tpl['label'] }}</option>
+            @endforeach
+        </select>
+
         <div class="checkbox mt">
             <input id="health_data" type="checkbox" name="health_data" value="1" @checked(old('health_data'))>
             <label for="health_data" style="margin:0">Attiva modulo dati sanitari (obbligatorio per dentista / medico / fisioterapista)</label>

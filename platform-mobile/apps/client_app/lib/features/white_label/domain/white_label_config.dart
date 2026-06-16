@@ -15,6 +15,12 @@ class WhiteLabelConfig {
     required this.confirmationMode,
     required this.legal,
     required this.locations,
+    this.logoUrl,
+    this.contacts = const BusinessContacts(),
+    this.social = const BusinessSocial(),
+    this.template = 'default',
+    this.layout = 'standard',
+    this.fontStyle,
     this.unavailableMessageKey,
   });
 
@@ -22,10 +28,20 @@ class WhiteLabelConfig {
   final int configVersion;
   final String appName;
   final String? tagline;
+  final String? logoUrl;
   final BrandTheme theme;
   final String localeDefault;
   final Map<String, bool> features;
   final String confirmationMode; // auto_confirm | request_approve
+  final BusinessContacts contacts;
+  final BusinessSocial social;
+
+  /// App Factory skin: template code, layout variant e font (consumati per
+  /// scegliere la variante di presentazione; il motore resta identico).
+  final String template;
+  final String layout;
+  final String? fontStyle;
+
   final LegalLinks legal;
   final List<TenantLocation> locations;
 
@@ -66,6 +82,10 @@ class WhiteLabelConfig {
       configVersion: (json['config_version'] as num?)?.toInt() ?? 0,
       appName: json['app_name'] as String? ?? '',
       tagline: json['tagline'] as String?,
+      logoUrl: json['logo_url'] as String?,
+      template: json['template'] as String? ?? 'default',
+      layout: json['layout'] as String? ?? 'standard',
+      fontStyle: json['font_style'] as String?,
       theme: BrandTheme.fromJson(
         json['theme'] as Map<String, dynamic>? ?? const {},
       ),
@@ -75,6 +95,12 @@ class WhiteLabelConfig {
       ).map((key, value) => MapEntry(key, value == true)),
       confirmationMode:
           booking['confirmation_mode'] as String? ?? 'auto_confirm',
+      contacts: BusinessContacts.fromJson(
+        json['contacts'] as Map<String, dynamic>? ?? const {},
+      ),
+      social: BusinessSocial.fromJson(
+        json['social'] as Map<String, dynamic>? ?? const {},
+      ),
       legal: LegalLinks.fromJson(
         json['legal'] as Map<String, dynamic>? ?? const {},
       ),
@@ -148,6 +174,91 @@ class BrandTheme {
   }
 }
 
+/// Direct business contacts shown in the premium "scheda attività".
+/// Every field is optional: the UI hides what's absent (no blank rows).
+class BusinessContacts {
+  const BusinessContacts({this.phone, this.email, this.website});
+
+  final String? phone;
+  final String? email;
+  final String? website;
+
+  bool get hasAny => phone != null || email != null || website != null;
+
+  factory BusinessContacts.fromJson(Map<String, dynamic> json) =>
+      BusinessContacts(
+        phone: json['phone'] as String?,
+        email: json['email'] as String?,
+        website: json['website'] as String?,
+      );
+}
+
+/// Social + quick links (Instagram, Facebook, Google Maps, WhatsApp).
+/// External deep links only — no in-app chat/CRM (Fase commerciale).
+class BusinessSocial {
+  const BusinessSocial({
+    this.instagramUrl,
+    this.facebookUrl,
+    this.mapsUrl,
+    this.whatsapp,
+  });
+
+  final String? instagramUrl;
+  final String? facebookUrl;
+  final String? mapsUrl;
+  final WhatsAppContact? whatsapp;
+
+  bool get hasAny =>
+      instagramUrl != null ||
+      facebookUrl != null ||
+      mapsUrl != null ||
+      whatsapp != null;
+
+  factory BusinessSocial.fromJson(Map<String, dynamic> json) => BusinessSocial(
+        instagramUrl: json['instagram_url'] as String?,
+        facebookUrl: json['facebook_url'] as String?,
+        mapsUrl: json['maps_url'] as String?,
+        whatsapp: json['whatsapp'] is Map<String, dynamic>
+            ? WhatsAppContact.fromJson(json['whatsapp'] as Map<String, dynamic>)
+            : null,
+      );
+}
+
+class WhatsAppContact {
+  const WhatsAppContact({required this.number, this.message});
+
+  final String number;
+  final String? message;
+
+  /// `https://wa.me/<digits>?text=<message>` — opens WhatsApp chat.
+  Uri get uri {
+    final digits = number.replaceAll(RegExp(r'[^0-9]'), '');
+    final query = (message == null || message!.isEmpty)
+        ? ''
+        : '?text=${Uri.encodeComponent(message!)}';
+
+    return Uri.parse('https://wa.me/$digits$query');
+  }
+
+  factory WhatsAppContact.fromJson(Map<String, dynamic> json) => WhatsAppContact(
+        number: json['number'] as String? ?? '',
+        message: json['message'] as String?,
+      );
+}
+
+/// A single open interval (local wall-clock "HH:MM") within a weekday.
+class OpeningInterval {
+  const OpeningInterval({required this.start, required this.end});
+
+  final String start;
+  final String end;
+
+  factory OpeningInterval.fromJson(Map<String, dynamic> json) => OpeningInterval(
+        start: json['start'] as String? ?? '',
+        end: json['end'] as String? ?? '',
+      );
+}
+
 /// Tenant-configurable legal/support links (Fase 3+5: GDPR + store).
 class LegalLinks {
   const LegalLinks({this.privacyPolicyUrl, this.termsUrl, this.supportUrl});
@@ -172,6 +283,7 @@ class TenantLocation {
     required this.cancellationCutoffMinutes,
     this.address,
     this.phone,
+    this.openingHours = const {},
   });
 
   final String uuid;
@@ -182,14 +294,41 @@ class TenantLocation {
   final int bookingWindowDays;
   final int cancellationCutoffMinutes;
 
-  factory TenantLocation.fromJson(Map<String, dynamic> json) => TenantLocation(
-        uuid: json['uuid'] as String,
-        name: json['name'] as String? ?? '',
-        address: json['address'] as String?,
-        phone: json['phone'] as String?,
-        timezone: json['timezone'] as String? ?? 'Europe/Rome',
-        bookingWindowDays: (json['booking_window_days'] as num?)?.toInt() ?? 60,
-        cancellationCutoffMinutes:
-            (json['cancellation_cutoff_minutes'] as num?)?.toInt() ?? 1440,
-      );
+  /// Weekday (0 = Monday) → open intervals, in the location's local time.
+  /// Empty map = no published hours.
+  final Map<int, List<OpeningInterval>> openingHours;
+
+  bool get hasOpeningHours => openingHours.isNotEmpty;
+
+  factory TenantLocation.fromJson(Map<String, dynamic> json) {
+    final rawHours = json['opening_hours'];
+    final hours = <int, List<OpeningInterval>>{};
+
+    if (rawHours is Map) {
+      rawHours.forEach((key, value) {
+        final weekday = int.tryParse(key.toString());
+
+        if (weekday == null) {
+          return;
+        }
+
+        hours[weekday] = ((value as List?) ?? const [])
+            .whereType<Map<String, dynamic>>()
+            .map(OpeningInterval.fromJson)
+            .toList();
+      });
+    }
+
+    return TenantLocation(
+      uuid: json['uuid'] as String,
+      name: json['name'] as String? ?? '',
+      address: json['address'] as String?,
+      phone: json['phone'] as String?,
+      timezone: json['timezone'] as String? ?? 'Europe/Rome',
+      bookingWindowDays: (json['booking_window_days'] as num?)?.toInt() ?? 60,
+      cancellationCutoffMinutes:
+          (json['cancellation_cutoff_minutes'] as num?)?.toInt() ?? 1440,
+      openingHours: hours,
+    );
+  }
 }

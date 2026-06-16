@@ -46,6 +46,14 @@ final class BrandingController extends Controller
             'privacy_policy_url' => ['nullable', 'url:https', 'max:255'],
             'terms_url' => ['nullable', 'url:https', 'max:255'],
             'support_url' => ['nullable', 'url:https', 'max:255'],
+            // Contatti & social mostrati nell'app (scheda attività premium).
+            'contact_email' => ['nullable', 'email', 'max:255'],
+            'website_url' => ['nullable', 'url:https', 'max:255'],
+            'whatsapp_number' => ['nullable', 'string', 'max:32'],
+            'whatsapp_message' => ['nullable', 'string', 'max:255'],
+            'instagram_url' => ['nullable', 'url:https', 'max:255'],
+            'facebook_url' => ['nullable', 'url:https', 'max:255'],
+            'maps_url' => ['nullable', 'url:https', 'max:255'],
         ], [], ['app_name' => 'nome app', 'primary_color' => 'colore primario']);
 
         $brand = BrandProfile::query()->firstOrFail();
@@ -75,6 +83,13 @@ final class BrandingController extends Controller
             'privacy_policy_url' => $data['privacy_policy_url'] ?? null,
             'terms_url' => $data['terms_url'] ?? null,
             'support_url' => $data['support_url'] ?? null,
+            'contact_email' => $data['contact_email'] ?? null,
+            'website_url' => $data['website_url'] ?? null,
+            'whatsapp_number' => $data['whatsapp_number'] ?? null,
+            'whatsapp_message' => $data['whatsapp_message'] ?? null,
+            'instagram_url' => $data['instagram_url'] ?? null,
+            'facebook_url' => $data['facebook_url'] ?? null,
+            'maps_url' => $data['maps_url'] ?? null,
             'contrast_validated' => true,
         ]);
         $brand->bumpConfigVersion();

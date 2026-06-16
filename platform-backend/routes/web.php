@@ -2,6 +2,11 @@
 
 declare(strict_types=1);
 
+use App\Modules\AppFactory\Http\Controllers\AppProjectController;
+use App\Modules\ControlRoom\Http\Controllers\ControlRoomAuthController;
+use App\Modules\ControlRoom\Http\Controllers\TenantBrandController;
+use App\Modules\ControlRoom\Http\Controllers\TenantInviteController;
+use App\Modules\ControlRoom\Http\Controllers\TenantsController;
 use App\Modules\Dashboard\Http\Controllers\AvailabilityController;
 use App\Modules\Dashboard\Http\Controllers\BookingsController;
 use App\Modules\Dashboard\Http\Controllers\BrandingController;
@@ -9,10 +14,6 @@ use App\Modules\Dashboard\Http\Controllers\HomeController;
 use App\Modules\Dashboard\Http\Controllers\ServicesController;
 use App\Modules\Dashboard\Http\Controllers\StaffController;
 use App\Modules\Dashboard\Http\Controllers\WebAuthController;
-use App\Modules\ControlRoom\Http\Controllers\ControlRoomAuthController;
-use App\Modules\ControlRoom\Http\Controllers\TenantBrandController;
-use App\Modules\ControlRoom\Http\Controllers\TenantInviteController;
-use App\Modules\ControlRoom\Http\Controllers\TenantsController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -123,5 +124,15 @@ Route::prefix('control-room')->group(function (): void {
 
         Route::put('/clienti/{uuid}/brand', [TenantBrandController::class, 'update'])->name('control.tenants.brand');
         Route::post('/clienti/{uuid}/logo', [TenantBrandController::class, 'uploadLogo'])->name('control.tenants.logo');
+
+        // App Factory (FASE 1): App Project + generazione manifest.
+        Route::get('/apps', [AppProjectController::class, 'index'])->name('control.apps.index');
+        // Osservabilità flotta (FASE 3): prima di /apps/{uuid} per non essere oscurata.
+        Route::get('/apps/flotta', [AppProjectController::class, 'fleet'])->name('control.apps.fleet');
+        Route::get('/apps/{uuid}', [AppProjectController::class, 'show'])->name('control.apps.show');
+        Route::put('/apps/{uuid}/template', [AppProjectController::class, 'updateTemplate'])->name('control.apps.template');
+        Route::post('/apps/{uuid}/genera', [AppProjectController::class, 'generate'])->name('control.apps.generate');
+        Route::get('/apps/{uuid}/download/{build}', [AppProjectController::class, 'download'])->name('control.apps.download');
+        Route::get('/apps/{uuid}/package', [AppProjectController::class, 'downloadPackage'])->name('control.apps.package');
     });
 });

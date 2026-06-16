@@ -1,0 +1,5 @@
+// App Factory FASE 2B — identità per-tenant iOS. Default = valori attuali
+// (build standard invariata). Il nome è usato da Info.plist via
+// $(TENANT_APP_NAME); il bundle id viene impostato da make_app.sh a build-time
+// (sed su project.pbxproj), così il repo committato resta valido.
+TENANT_APP_NAME = Client App

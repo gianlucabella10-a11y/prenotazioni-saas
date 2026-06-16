@@ -45,6 +45,43 @@
             <input id="support_url" type="url" name="support_url" maxlength="255"
                    value="{{ old('support_url', $brand->support_url) }}" placeholder="https://...">
 
+            <h2 class="mt">Contatti e social (mostrati nell'app)</h2>
+            <p class="muted" style="margin-top:0">Lascia vuoto un campo per nasconderlo nell'app.</p>
+
+            <label for="contact_email">Email pubblica</label>
+            <input id="contact_email" type="email" name="contact_email" maxlength="255"
+                   value="{{ old('contact_email', $brand->contact_email) }}" placeholder="info@...">
+
+            <label for="website_url">Sito web (URL https)</label>
+            <input id="website_url" type="url" name="website_url" maxlength="255"
+                   value="{{ old('website_url', $brand->website_url) }}" placeholder="https://...">
+
+            <div class="row">
+                <div>
+                    <label for="whatsapp_number">WhatsApp (numero con prefisso)</label>
+                    <input id="whatsapp_number" type="text" name="whatsapp_number" maxlength="32"
+                           value="{{ old('whatsapp_number', $brand->whatsapp_number) }}" placeholder="+39333...">
+                </div>
+                <div>
+                    <label for="whatsapp_message">Messaggio WhatsApp precompilato</label>
+                    <input id="whatsapp_message" type="text" name="whatsapp_message" maxlength="255"
+                           value="{{ old('whatsapp_message', $brand->whatsapp_message) }}"
+                           placeholder="Ciao, vorrei informazioni...">
+                </div>
+            </div>
+
+            <label for="instagram_url">Instagram (URL https)</label>
+            <input id="instagram_url" type="url" name="instagram_url" maxlength="255"
+                   value="{{ old('instagram_url', $brand->instagram_url) }}" placeholder="https://instagram.com/...">
+
+            <label for="facebook_url">Facebook (URL https)</label>
+            <input id="facebook_url" type="url" name="facebook_url" maxlength="255"
+                   value="{{ old('facebook_url', $brand->facebook_url) }}" placeholder="https://facebook.com/...">
+
+            <label for="maps_url">Google Maps (URL https — vuoto = generato dall'indirizzo)</label>
+            <input id="maps_url" type="url" name="maps_url" maxlength="255"
+                   value="{{ old('maps_url', $brand->maps_url) }}" placeholder="https://maps.google.com/...">
+
             <button class="btn mt" type="submit">Salva personalizzazione</button>
         </form>
     </div>

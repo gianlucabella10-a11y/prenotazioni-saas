@@ -38,10 +38,22 @@ dependencies:
   url_launcher: ^6.3.1
   sentry_flutter: ^9.22.0   # 9.x: compatibilità con Xcode 26 (la 8.x non compila)
 
+  # Push notifications (Fase 4). L'inizializzazione è guardata: senza i file
+  # di configurazione Firebase (vedi FIREBASE_CONFIGURATION_REQUIRED.md) il
+  # push resta disattivato e l'app pienamente funzionante.
+  firebase_core: ^3.6.0
+  firebase_messaging: ^15.1.3
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^6.0.0
+
+  # App Factory FASE 2B — generano icone/splash nativi dal logo del tenant.
+  # Eseguiti dallo script tool/app_factory/make_app.sh a build-time (non al
+  # boot dell'app): consumano tool/app_factory/build/{icon,splash}.png.
+  flutter_launcher_icons: ^0.14.1
+  flutter_native_splash: ^2.4.1
 
 flutter:
   uses-material-design: true

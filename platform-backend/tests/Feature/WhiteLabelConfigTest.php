@@ -5,6 +5,9 @@ declare(strict_types=1);
 namespace Tests\Feature;
 
 use App\Foundation\Tenancy\TenantRegistry;
+use App\Models\User;
+use App\Modules\AppFactory\Application\AllocateAppIdentifiers;
+use App\Modules\Branding\Infrastructure\Models\BrandProfile;
 use App\Modules\TenantManagement\Domain\TenantStatus;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\Concerns\InteractsWithTenancy;
@@ -27,6 +30,58 @@ final class WhiteLabelConfigTest extends TestCase
             ->assertJsonPath('locations.0.uuid', $env['location']->uuid)
             ->assertJsonStructure(['theme' => ['colors' => ['primary', 'on_primary']]])
             ->assertHeader('ETag');
+    }
+
+    public function test_config_exposes_contacts_social_and_opening_hours(): void
+    {
+        $env = $this->provisionBookableTenant();
+
+        // Keys always present (null-safe), so the client can render or hide.
+        $this->getJson('/api/v1/app/config', $this->tenantKeyHeaders($env['tenant']))
+            ->assertOk()
+            ->assertJsonStructure([
+                'logo_url',
+                'contacts' => ['phone', 'email', 'website'],
+                'social' => ['instagram_url', 'facebook_url', 'maps_url'],
+                'locations' => [['opening_hours']],
+            ]);
+
+        // Brand-level contacts/social surface once configured.
+        $this->bypassTenancy(function (): void {
+            BrandProfile::query()->firstOrFail()->forceFill([
+                'contact_email' => 'info@demo.it',
+                'instagram_url' => 'https://instagram.com/demo',
+                'whatsapp_number' => '+393331234567',
+                'whatsapp_message' => 'Ciao',
+            ])->save();
+        });
+
+        $this->getJson('/api/v1/app/config', $this->tenantKeyHeaders($env['tenant']))
+            ->assertOk()
+            ->assertJsonPath('contacts.email', 'info@demo.it')
+            ->assertJsonPath('social.instagram_url', 'https://instagram.com/demo')
+            ->assertJsonPath('social.whatsapp.number', '+393331234567');
+    }
+
+    public function test_config_exposes_template_skin(): void
+    {
+        $env = $this->provisionBookableTenant();
+
+        // Senza App Project → template di default.
+        $this->getJson('/api/v1/app/config', $this->tenantKeyHeaders($env['tenant']))
+            ->assertOk()
+            ->assertJsonPath('template', 'default');
+
+        // Con App Project → il template scelto arriva nel config.
+        $adminId = $this->bypassTenancy(fn () => User::factory()->superAdmin()->create()->id);
+        app(AllocateAppIdentifiers::class)
+            ->execute($env['tenant'], 'barber_dark', $adminId);
+
+        $this->getJson('/api/v1/app/config', $this->tenantKeyHeaders($env['tenant']))
+            ->assertOk()
+            ->assertJsonPath('template', 'barber_dark')
+            ->assertJsonPath('layout', 'hero_dark')
+            ->assertJsonPath('font_style', 'oswald');
     }
 
     public function test_etag_revalidation_returns_304(): void

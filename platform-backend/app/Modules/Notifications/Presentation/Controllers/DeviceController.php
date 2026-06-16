@@ -27,13 +27,21 @@ final class DeviceController extends Controller
             'platform' => ['required', 'in:ios,android'],
             'fcm_token' => ['required', 'string', 'max:255'],
             'locale' => ['nullable', 'string', 'max:10'],
+            'device_name' => ['nullable', 'string', 'max:120'],
+            'app_version' => ['nullable', 'string', 'max:32'],
         ]);
 
+        // Keyed on (user, token): the device always belongs to the
+        // authenticated user; tenant_id mirrors the user's tenant so a
+        // device can never be registered against another tenant.
         $device = Device::query()->updateOrCreate(
             ['user_id' => $user->id, 'fcm_token' => $data['fcm_token']],
             [
+                'tenant_id' => $user->tenant_id,
                 'platform' => $data['platform'],
                 'locale' => $data['locale'] ?? $user->locale,
+                'device_name' => $data['device_name'] ?? null,
+                'app_version' => $data['app_version'] ?? null,
                 'last_seen_at' => now(),
             ],
         );

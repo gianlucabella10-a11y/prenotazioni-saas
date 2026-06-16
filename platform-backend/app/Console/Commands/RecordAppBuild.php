@@ -1,0 +1,100 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Console\Commands;
+
+use App\Foundation\Tenancy\CurrentTenant;
+use App\Modules\AppFactory\Domain\AppProjectStatus;
+use App\Modules\AppFactory\Infrastructure\Models\AppBuild;
+use App\Modules\AppFactory\Infrastructure\Models\AppProject;
+use App\Modules\TenantManagement\Infrastructure\Models\Tenant;
+use Illuminate\Console\Command;
+
+/**
+ * Callback dalla pipeline CI (FASE 2C): registra l'esito di una build/firma/
+ * pubblicazione per-tenant. NON esegue build — la CI invoca questo comando
+ * (es. via SSH/artisan) per tracciare lo stato fino a `published`.
+ */
+final class RecordAppBuild extends Command
+{
+    protected $signature = 'app:build-record {tenant : UUID} {platform : android|ios} {status : building|built|published|failed} {--app-version=} {--artifact=}';
+
+    protected $description = 'Registra l\'esito di una build/pubblicazione per-tenant (callback CI). Nessuna build eseguita.';
+
+    public function handle(CurrentTenant $current): int
+    {
+        $platform = (string) $this->argument('platform');
+        $status = (string) $this->argument('status');
+
+        if (! in_array($platform, ['android', 'ios'], true)) {
+            $this->error('Piattaforma non valida (android|ios).');
+
+            return self::FAILURE;
+        }
+
+        if (! in_array($status, ['building', 'built', 'published', 'failed'], true)) {
+            $this->error('Stato non valido (building|built|published|failed).');
+
+            return self::FAILURE;
+        }
+
+        $uuid = (string) $this->argument('tenant');
+        $version = (string) ($this->option('app-version') ?? '');
+        $artifact = $this->option('artifact');
+
+        $result = $current->bypass(function () use ($uuid, $platform, $status, $version, $artifact): ?array {
+            $tenant = Tenant::query()->where('uuid', $uuid)->first();
+
+            if ($tenant === null) {
+                return null;
+            }
+
+            $project = AppProject::query()->where('tenant_id', $tenant->id)->first();
+
+            if ($project === null) {
+                return null;
+            }
+
+            $next = AppBuild::query()->where('app_project_id', $project->id)->count() + 1;
+
+            $build = AppBuild::query()->create([
+                'tenant_id' => $tenant->id,
+                'app_project_id' => $project->id,
+                'version' => $version !== '' ? $version : "1.0.0+{$next}",
+                'platform' => $platform,
+                'status' => $status,
+                'artifact_path' => $artifact,
+            ]);
+
+            $attributes = [
+                'build_status' => match ($status) {
+                    'published' => AppProjectStatus::Published,
+                    'failed' => AppProjectStatus::Failed,
+                    default => AppProjectStatus::Building,
+                },
+            ];
+
+            // Release train (FASE 3): alla pubblicazione fissa il core con cui
+            // l'app è stata costruita, così i bump del core la rendono stale.
+            if ($status === 'published') {
+                $attributes['built_core_version'] = (string) config('app_factory.core_version', '1.0.0');
+            }
+
+            $project->forceFill($attributes)->save();
+
+            return ['tenant' => $tenant->display_name, 'build' => $build, 'project' => $project];
+        });
+
+        if ($result === null) {
+            $this->error("Tenant o App Project non trovato: {$uuid}");
+
+            return self::FAILURE;
+        }
+
+        $this->info("Build registrata: {$result['tenant']} · {$platform} · {$status} (v{$result['build']->version})");
+        $this->line("  stato app: {$result['project']->build_status->value}");
+
+        return self::SUCCESS;
+    }
+}

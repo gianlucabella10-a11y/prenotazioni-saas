@@ -8,6 +8,8 @@ use App\Foundation\Enums\UserType;
 use App\Foundation\Http\ApiException;
 use App\Foundation\Tenancy\CurrentTenant;
 use App\Models\User;
+use App\Modules\AppFactory\Application\AllocateAppIdentifiers;
+use App\Modules\AppFactory\Domain\TemplateRegistry;
 use App\Modules\Branding\Infrastructure\Models\BrandAsset;
 use App\Modules\Branding\Infrastructure\Models\BrandProfile;
 use App\Modules\TenantManagement\Application\ChangeTenantStatus;
@@ -63,14 +65,17 @@ final class TenantsController extends Controller
         return view('control_room.tenants.index', compact('tenants', 'owners', 'q', 'status'));
     }
 
-    public function create(): View
+    public function create(TemplateRegistry $templates): View
     {
         $plans = Plan::query()->where('is_active', true)->orderBy('price_monthly_cents')->get();
 
-        return view('control_room.tenants.create', ['plans' => $plans]);
+        return view('control_room.tenants.create', [
+            'plans' => $plans,
+            'templates' => $templates->all(),
+        ]);
     }
 
-    public function store(Request $request, ProvisionTenant $provision): RedirectResponse
+    public function store(Request $request, ProvisionTenant $provision, AllocateAppIdentifiers $allocate): RedirectResponse
     {
         $data = $request->validate([
             'display_name' => ['required', 'string', 'min:2', 'max:30'],
@@ -80,6 +85,7 @@ final class TenantsController extends Controller
             'address' => ['nullable', 'string', 'max:255'],
             'plan_code' => ['required', 'string', 'exists:plans,code'],
             'primary_color' => ['nullable', 'regex:/^#[0-9A-Fa-f]{6}$/'],
+            'template_code' => ['nullable', 'string'],
             'health_data' => ['sometimes', 'boolean'],
         ]);
 
@@ -106,6 +112,9 @@ final class TenantsController extends Controller
         if (! empty($data['primary_color'])) {
             $this->applyPrimaryColor($tenant->id, $data['primary_color']);
         }
+
+        // Ogni cliente è un'app: alloca subito l'identità store/build (App Project).
+        $allocate->execute($tenant, $data['template_code'] ?? 'default', $request->user('admin')->id);
 
         return redirect()->route('control.tenants.show', $tenant->uuid)
             ->with('status', 'Cliente creato. Invia il link di accesso al titolare.')

@@ -48,6 +48,30 @@ void main() {
       expect(config.theme.typographyScale, 1.1);
     });
 
+    test('parses the App Factory skin (template/layout/font) with defaults', () {
+      final withSkin = WhiteLabelConfig.fromJson({
+        'tenant_status': 'active',
+        'app_name': 'Giuffrida Barber',
+        'template': 'barber_dark',
+        'layout': 'hero_dark',
+        'font_style': 'oswald',
+      });
+
+      expect(withSkin.template, 'barber_dark');
+      expect(withSkin.layout, 'hero_dark');
+      expect(withSkin.fontStyle, 'oswald');
+
+      // Defaults when the skin is absent.
+      final bare = WhiteLabelConfig.fromJson({
+        'tenant_status': 'active',
+        'app_name': 'X',
+      });
+
+      expect(bare.template, 'default');
+      expect(bare.layout, 'standard');
+      expect(bare.fontStyle, isNull);
+    });
+
     test('suspended tenant yields the courtesy model (docs/27 §7)', () {
       final config = WhiteLabelConfig.fromJson({
         'tenant_status': 'suspended',

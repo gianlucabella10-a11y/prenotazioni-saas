@@ -35,4 +35,12 @@ return [
         ],
     ],
 
+    // Firebase Cloud Messaging (push). Consumed by FcmPushChannel; the
+    // service-account JSON path and project id come from the environment —
+    // never commit credentials. See FIREBASE_CONFIGURATION_REQUIRED.md.
+    'fcm' => [
+        'project_id' => env('FCM_PROJECT_ID'),
+        'credentials_path' => env('FCM_CREDENTIALS_PATH'),
+    ],
+
 ];

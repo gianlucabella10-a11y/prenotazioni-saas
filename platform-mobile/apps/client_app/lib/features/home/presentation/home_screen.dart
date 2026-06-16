@@ -7,6 +7,10 @@ import '../../../app/router.dart';
 import '../../../core/utils/formats.dart';
 import '../../booking/application/booking_flow_controller.dart';
 
+/// Layout variant "hero" attivata dal template (App Factory): header
+/// brandizzato a tutta larghezza invece della sola tagline.
+bool _isHeroLayout(String layout) => layout == 'hero_dark' || layout == 'gallery';
+
 /// Home: brand header, primary CTA, next appointment, quick links.
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
@@ -35,7 +39,17 @@ class HomeScreen extends ConsumerWidget {
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
-            if (config?.tagline != null)
+            // Template Engine: la variante di layout (App Factory) sceglie
+            // l'header. Skin "hero"/"gallery" → header brandizzato; le altre
+            // mantengono l'header standard. Il motore sotto è identico.
+            if (config != null && _isHeroLayout(config.layout))
+              _HeroHeader(
+                key: const Key('home_hero_header'),
+                appName: config.appName,
+                tagline: config.tagline,
+                logoUrl: config.logoUrl,
+              )
+            else if (config?.tagline != null)
               Padding(
                 padding: const EdgeInsets.only(bottom: 16),
                 child: Text(
@@ -127,6 +141,67 @@ class HomeScreen extends ConsumerWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// Header brandizzato delle skin "hero": logo + nome + tagline su sfondo
+/// primario. Solo presentazione — nessun impatto sul motore prenotazioni.
+class _HeroHeader extends StatelessWidget {
+  const _HeroHeader({
+    super.key,
+    required this.appName,
+    this.tagline,
+    this.logoUrl,
+  });
+
+  final String appName;
+  final String? tagline;
+  final String? logoUrl;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.symmetric(vertical: 28, horizontal: 16),
+      decoration: BoxDecoration(
+        color: scheme.primary,
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Column(
+        children: [
+          if (logoUrl != null)
+            ClipRRect(
+              borderRadius: BorderRadius.circular(16),
+              child: Image.network(
+                logoUrl!,
+                height: 72,
+                width: 72,
+                fit: BoxFit.cover,
+                errorBuilder: (_, _, _) => const SizedBox.shrink(),
+              ),
+            ),
+          const SizedBox(height: 12),
+          Text(
+            appName,
+            style: Theme.of(context)
+                .textTheme
+                .headlineSmall
+                ?.copyWith(color: scheme.onPrimary),
+            textAlign: TextAlign.center,
+          ),
+          if (tagline != null) ...[
+            const SizedBox(height: 4),
+            Text(
+              tagline!,
+              style: TextStyle(color: scheme.onPrimary.withValues(alpha: 0.85)),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ],
       ),
     );
   }

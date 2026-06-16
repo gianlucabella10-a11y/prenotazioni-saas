@@ -8,7 +8,7 @@ import 'white_label_config.dart';
 /// the app consumes ThemeData/ColorScheme — never raw colors — so swapping
 /// the tenant config restyles the whole product without code changes.
 abstract final class AppThemeBuilder {
-  static ThemeData build(BrandTheme tokens) {
+  static ThemeData build(BrandTheme tokens, {String? fontStyle}) {
     final primary = _color(tokens.colors['primary']);
     final onPrimary = _color(tokens.colors['on_primary']);
     final secondary = _color(tokens.colors['secondary']);
@@ -78,11 +78,22 @@ abstract final class AppThemeBuilder {
           .merge(Typography.englishLike2021)
           .apply(
             fontSizeFactor: tokens.typographyScale,
+            fontFamily: _fontFamily(fontStyle),
             bodyColor: onSurface,
             displayColor: onSurface,
           ),
     );
   }
+
+  /// Maps a curated `font_style` (App Factory template) to a bundled family.
+  /// Returns null (platform default) when unknown or not yet bundled — the
+  /// mechanism is wired; the actual .ttf files are added with the templates.
+  static String? _fontFamily(String? fontStyle) => switch (fontStyle) {
+        'oswald' => 'Oswald',
+        'poppins' => 'Poppins',
+        'inter' => 'Inter',
+        _ => null,
+      };
 
   /// Parses `#RRGGBB`; an invalid token falls back to a readable neutral
   /// instead of crashing the UI (the backend already validates contrast,

@@ -24,6 +24,10 @@
                class="{{ request()->routeIs('control.tenants.index') || request()->routeIs('control.tenants.show') ? 'active' : '' }}">Clienti</a>
             <a href="{{ route('control.tenants.create') }}"
                class="{{ request()->routeIs('control.tenants.create') ? 'active' : '' }}">+ Nuovo cliente</a>
+            <a href="{{ route('control.apps.index') }}"
+               class="{{ request()->routeIs('control.apps.index') || request()->routeIs('control.apps.show') ? 'active' : '' }}">App</a>
+            <a href="{{ route('control.apps.fleet') }}"
+               class="{{ request()->routeIs('control.apps.fleet') ? 'active' : '' }}">Flotta</a>
         </nav>
         <div class="foot">
             {{ auth('admin')->user()?->email }}<br>

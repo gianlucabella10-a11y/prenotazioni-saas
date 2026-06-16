@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../core/network/api_client.dart';
+import '../core/push/push_notification_service.dart';
 import '../core/session/session_controller.dart';
 import '../core/storage/token_storage.dart';
 import '../features/auth/data/auth_repository.dart';
@@ -55,6 +56,14 @@ final bookingRepositoryProvider = Provider<BookingRepository>(
 final meRepositoryProvider = Provider<MeRepository>(
   (ref) => MeRepository(ref.watch(apiClientProvider)),
 );
+
+/// Push notifications (Fase 4): the device registration seam is wired to the
+/// MeRepository (PUT/DELETE /me/devices). Guarded — see PushNotificationService.
+final pushNotificationServiceProvider = Provider<PushNotificationService>((ref) {
+  final me = ref.watch(meRepositoryProvider);
+
+  return PushNotificationService(me.registerDevice, me.unregisterDevice);
+});
 
 /// The customer's own profile (Fase 2); invalidated after edits.
 final myProfileProvider = FutureProvider<MyProfile>(
