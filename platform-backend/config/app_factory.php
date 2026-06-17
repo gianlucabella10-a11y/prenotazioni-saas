@@ -27,4 +27,15 @@ return [
     // privato (default = manifest_disk) sotto la cartella `export_base`.
     'export_disk' => env('APP_FACTORY_EXPORT_DISK', env('APP_FACTORY_MANIFEST_DISK', 'local')),
     'export_base' => 'generated_apps',
+
+    // Motore di build (FASE 4). `manual` (default sicuro) registra l'intento e
+    // l'operatore lancia la CI; `github` avvia il workflow via API. Tutti i
+    // segreti via ENV (vedi APP_FACTORY_RELEASE_SECRETS.md).
+    'build_driver' => env('APP_FACTORY_BUILD_DRIVER', 'manual'),
+    'github' => [
+        'repo' => env('APP_FACTORY_GITHUB_REPO', ''),        // es. owner/repo
+        'token' => env('APP_FACTORY_GITHUB_TOKEN', ''),      // PAT/fine-grained con scope actions
+        'workflow' => env('APP_FACTORY_GITHUB_WORKFLOW', 'app-factory-build.yml'),
+        'ref' => env('APP_FACTORY_GITHUB_REF', 'main'),
+    ],
 ];

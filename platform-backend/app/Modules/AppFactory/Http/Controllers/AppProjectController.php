@@ -8,8 +8,10 @@ use App\Foundation\Audit\AuditLogger;
 use App\Foundation\Tenancy\CurrentTenant;
 use App\Modules\AppFactory\Application\AppPreview;
 use App\Modules\AppFactory\Application\BuildFleet;
+use App\Modules\AppFactory\Application\DispatchAppBuild;
 use App\Modules\AppFactory\Application\PrepareApp;
 use App\Modules\AppFactory\Domain\TemplateRegistry;
+use App\Modules\Branding\Application\RollbackBrandAssets;
 use App\Modules\AppFactory\Infrastructure\Models\AppBuild;
 use App\Modules\AppFactory\Infrastructure\Models\AppProject;
 use App\Modules\Branding\Infrastructure\Models\BrandProfile;
@@ -69,8 +71,43 @@ final class AppProjectController extends Controller
 
         $data['templates'] = $this->templates->all();
         $data['preview'] = $preview->execute($data['project']);
+        $data['assetVersions'] = app(RollbackBrandAssets::class)->versions($data['tenant']->id);
 
         return view('control_room.apps.show', $data);
+    }
+
+    /** Avvia una build (FASE 4): crea la riga app_builds + transizione building. */
+    public function dispatchBuild(Request $request, string $uuid, DispatchAppBuild $dispatch): RedirectResponse
+    {
+        $data = $request->validate(['platform' => ['required', 'in:android,ios']]);
+
+        $project = $this->currentTenant->bypass(
+            fn (): AppProject => AppProject::query()->where('uuid', $uuid)->firstOrFail()
+        );
+
+        try {
+            $dispatch->execute($project, $data['platform'], $request->user('admin')->id);
+        } catch (\RuntimeException $e) {
+            return back()->with('error', $e->getMessage());
+        }
+
+        return back()->with('status', "Build {$data['platform']} avviata: stato aggiornato a «In build».");
+    }
+
+    /** Rollback dei derivati a una versione precedente (storico mai cancellato). */
+    public function rollbackAssets(Request $request, string $uuid, RollbackBrandAssets $rollback): RedirectResponse
+    {
+        $data = $request->validate(['version' => ['required', 'integer', 'min:1']]);
+
+        $tenantId = $this->currentTenant->bypass(
+            fn (): int => AppProject::query()->where('uuid', $uuid)->firstOrFail()->tenant_id
+        );
+
+        $done = $rollback->execute($tenantId, (int) $data['version'], $request->user('admin')->id);
+
+        return $done
+            ? back()->with('status', "Asset riportati alla versione {$data['version']}. Rigenera il pacchetto per applicarli.")
+            : back()->with('error', 'Versione asset non trovata.');
     }
 
     public function updateTemplate(Request $request, string $uuid, AuditLogger $audit): RedirectResponse

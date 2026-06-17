@@ -21,10 +21,12 @@ final readonly class AppPreview
 {
     private const STATUS_LABELS = [
         'draft' => 'Bozza',
+        'configured' => 'Configurata',
         'ready' => 'Pronta',
         'generated' => 'Generata',
         'ready_to_build' => 'Pronta build',
         'building' => 'In build',
+        'built' => 'Compilata',
         'published' => 'Pubblicata',
         'failed' => 'Fallita',
     ];
@@ -46,21 +48,27 @@ final readonly class AppPreview
                 ->where('kind', BrandAsset::KIND_LOGO)
                 ->first();
 
+            // Solo i derivati della versione CORRENTE (storico escluso).
             $derived = $brand === null ? collect() : BrandAsset::query()
                 ->where('brand_profile_id', $brand->id)
                 ->whereNotNull('variant')
+                ->where('is_current', true)
                 ->get();
 
             // Mockup icona: preferisci ios_1024, altrimenti l'icona più grande.
             $icon = $derived->where('kind', 'icon')->sortByDesc('width')
                 ->sortByDesc(fn (BrandAsset $a): int => $a->variant === 'ios_1024' ? 1 : 0)
                 ->first();
+            $splash = $derived->where('kind', 'splash')->sortByDesc('width')->first();
+            $feature = $derived->where('kind', 'feature_graphic')->first();
 
             $status = $project->build_status->value;
 
             return [
                 'logo_url' => $this->urlFor($disk, $logo?->disk_path),
                 'icon_url' => $this->urlFor($disk, $icon?->disk_path),
+                'splash_url' => $this->urlFor($disk, $splash?->disk_path),
+                'feature_url' => $this->urlFor($disk, $feature?->disk_path),
                 'colors' => [
                     'primary' => $brand?->primary_color,
                     'secondary' => $brand?->secondary_color,
@@ -68,6 +76,7 @@ final readonly class AppPreview
                 'assets' => [
                     'icons' => $derived->where('kind', 'icon')->count(),
                     'splash' => $derived->where('kind', 'splash')->count(),
+                    'store' => $derived->whereIn('kind', ['feature_graphic', 'screenshot'])->count(),
                     'version' => (int) ($derived->max('version') ?? 0),
                 ],
                 'lifecycle' => $status === 'draft' && $logo !== null

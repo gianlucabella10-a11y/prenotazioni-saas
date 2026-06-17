@@ -21,10 +21,12 @@
                         @php
                             $m = [
                                 'draft' => ['off', 'Bozza'],
+                                'configured' => ['warn', 'Configurata'],
                                 'ready' => ['warn', 'Pronta'],
                                 'generated' => ['ok', 'Generata'],
                                 'ready_to_build' => ['ok', 'Pronta build'],
                                 'building' => ['warn', 'In build'],
+                                'built' => ['ok', 'Compilata'],
                                 'published' => ['ok', 'Pubblicata'],
                                 'failed' => ['danger', 'Fallita'],
                             ];

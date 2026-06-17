@@ -16,8 +16,8 @@
     <h3 style="margin-top:0">Stato build (tutte le app)</h3>
     @php
         $labels = [
-            'draft' => 'Bozza', 'ready' => 'Pronta', 'generated' => 'Generata',
-            'ready_to_build' => 'Pronta build', 'building' => 'In build',
+            'draft' => 'Bozza', 'configured' => 'Configurata', 'ready' => 'Pronta', 'generated' => 'Generata',
+            'ready_to_build' => 'Pronta build', 'building' => 'In build', 'built' => 'Compilata',
             'published' => 'Pubblicata', 'failed' => 'Fallita',
         ];
     @endphp

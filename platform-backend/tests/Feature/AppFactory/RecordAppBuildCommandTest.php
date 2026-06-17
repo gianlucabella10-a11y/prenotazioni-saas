@@ -55,7 +55,7 @@ final class RecordAppBuildCommandTest extends TestCase
         self::assertSame('failed', $this->bypassTenancy(fn (): string => $project->fresh()->build_status->value));
     }
 
-    public function test_built_status_marks_project_building(): void
+    public function test_built_status_marks_project_built(): void
     {
         $env = $this->provisionBookableTenant();
         $project = $this->projectFor($env['tenant']->id);
@@ -66,7 +66,23 @@ final class RecordAppBuildCommandTest extends TestCase
             'status' => 'built',
         ])->assertSuccessful();
 
-        self::assertSame('building', $this->bypassTenancy(fn (): string => $project->fresh()->build_status->value));
+        self::assertSame('built', $this->bypassTenancy(fn (): string => $project->fresh()->build_status->value));
+    }
+
+    public function test_failed_build_records_error_message(): void
+    {
+        $env = $this->provisionBookableTenant();
+        $project = $this->projectFor($env['tenant']->id);
+
+        $this->artisan('app:build-record', [
+            'tenant' => $env['tenant']->uuid,
+            'platform' => 'android',
+            'status' => 'failed',
+            '--error' => 'gradle: keystore not found',
+        ])->assertSuccessful();
+
+        $build = $this->bypassTenancy(fn (): AppBuild => AppBuild::query()->where('app_project_id', $project->id)->firstOrFail());
+        self::assertSame('gradle: keystore not found', $build->error_message);
     }
 
     public function test_version_defaults_when_omitted(): void

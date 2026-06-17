@@ -132,6 +132,8 @@ Route::prefix('control-room')->group(function (): void {
         Route::get('/apps/{uuid}', [AppProjectController::class, 'show'])->name('control.apps.show');
         Route::put('/apps/{uuid}/template', [AppProjectController::class, 'updateTemplate'])->name('control.apps.template');
         Route::post('/apps/{uuid}/genera', [AppProjectController::class, 'generate'])->name('control.apps.generate');
+        Route::post('/apps/{uuid}/build', [AppProjectController::class, 'dispatchBuild'])->name('control.apps.build');
+        Route::post('/apps/{uuid}/rollback', [AppProjectController::class, 'rollbackAssets'])->name('control.apps.rollback');
         Route::get('/apps/{uuid}/download/{build}', [AppProjectController::class, 'download'])->name('control.apps.download');
         Route::get('/apps/{uuid}/package', [AppProjectController::class, 'downloadPackage'])->name('control.apps.package');
     });

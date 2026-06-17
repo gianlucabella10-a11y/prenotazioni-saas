@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Console\Commands;
 
 use App\Foundation\Tenancy\CurrentTenant;
+use App\Modules\AppFactory\Application\TransitionAppProject;
 use App\Modules\AppFactory\Domain\AppProjectStatus;
 use App\Modules\AppFactory\Infrastructure\Models\AppBuild;
 use App\Modules\AppFactory\Infrastructure\Models\AppProject;
@@ -18,11 +19,11 @@ use Illuminate\Console\Command;
  */
 final class RecordAppBuild extends Command
 {
-    protected $signature = 'app:build-record {tenant : UUID} {platform : android|ios} {status : building|built|published|failed} {--app-version=} {--artifact=}';
+    protected $signature = 'app:build-record {tenant : UUID} {platform : android|ios} {status : building|built|published|failed} {--app-version=} {--artifact=} {--error=}';
 
     protected $description = 'Registra l\'esito di una build/pubblicazione per-tenant (callback CI). Nessuna build eseguita.';
 
-    public function handle(CurrentTenant $current): int
+    public function handle(CurrentTenant $current, TransitionAppProject $transition): int
     {
         $platform = (string) $this->argument('platform');
         $status = (string) $this->argument('status');
@@ -42,8 +43,9 @@ final class RecordAppBuild extends Command
         $uuid = (string) $this->argument('tenant');
         $version = (string) ($this->option('app-version') ?? '');
         $artifact = $this->option('artifact');
+        $error = $this->option('error');
 
-        $result = $current->bypass(function () use ($uuid, $platform, $status, $version, $artifact): ?array {
+        $result = $current->bypass(function () use ($uuid, $platform, $status, $version, $artifact, $error, $transition): ?array {
             $tenant = Tenant::query()->where('uuid', $uuid)->first();
 
             if ($tenant === null) {
@@ -65,23 +67,21 @@ final class RecordAppBuild extends Command
                 'platform' => $platform,
                 'status' => $status,
                 'artifact_path' => $artifact,
+                'error_message' => $status === 'failed' ? $error : null,
             ]);
 
-            $attributes = [
-                'build_status' => match ($status) {
-                    'published' => AppProjectStatus::Published,
-                    'failed' => AppProjectStatus::Failed,
-                    default => AppProjectStatus::Building,
-                },
-            ];
-
-            // Release train (FASE 3): alla pubblicazione fissa il core con cui
-            // l'app è stata costruita, così i bump del core la rendono stale.
+            // Release train: alla pubblicazione fissa il core di build.
             if ($status === 'published') {
-                $attributes['built_core_version'] = (string) config('app_factory.core_version', '1.0.0');
+                $project->forceFill(['built_core_version' => (string) config('app_factory.core_version', '1.0.0')])->save();
             }
 
-            $project->forceFill($attributes)->save();
+            // Transizione tracciata (old→new) dello stato App Project.
+            $project = $transition->execute($project, match ($status) {
+                'published' => AppProjectStatus::Published,
+                'built' => AppProjectStatus::Built,
+                'failed' => AppProjectStatus::Failed,
+                default => AppProjectStatus::Building,
+            }, null, ['platform' => $platform, 'version' => $build->version]);
 
             return ['tenant' => $tenant->display_name, 'build' => $build, 'project' => $project];
         });

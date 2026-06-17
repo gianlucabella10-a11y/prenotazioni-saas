@@ -30,6 +30,7 @@ final readonly class GenerateAppPackage
         private Config $config,
         private AuditLogger $audit,
         private TemplateRegistry $templates,
+        private TransitionAppProject $transition,
     ) {}
 
     public function execute(AppProject $project, ?int $actorUserId): AppBuild
@@ -46,6 +47,7 @@ final readonly class GenerateAppPackage
             $derived = $brand === null ? collect() : BrandAsset::query()
                 ->where('brand_profile_id', $brand->id)
                 ->whereNotNull('variant')
+                ->where('is_current', true)
                 ->get();
 
             $template = $this->templates->get($project->template_code);
@@ -122,18 +124,16 @@ final readonly class GenerateAppPackage
             ]);
 
             $project->forceFill([
-                'build_status' => $hasAssets ? AppProjectStatus::ReadyToBuild : AppProjectStatus::Generated,
                 'last_generated_at' => now(),
                 'build_manifest' => $manifest,
             ])->save();
 
-            $this->audit->log(
-                'app_project.generated',
+            // Transizione tracciata (old→new) verso ready_to_build/generated.
+            $this->transition->execute(
+                $project,
+                $hasAssets ? AppProjectStatus::ReadyToBuild : AppProjectStatus::Generated,
                 $actorUserId,
                 ['version' => $version, 'assets' => $derived->count()],
-                $tenant->id,
-                AppProject::class,
-                $project->id,
             );
 
             return $build;

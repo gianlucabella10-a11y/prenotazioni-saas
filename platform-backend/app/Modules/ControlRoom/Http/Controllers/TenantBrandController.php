@@ -6,6 +6,8 @@ namespace App\Modules\ControlRoom\Http\Controllers;
 
 use App\Foundation\Audit\AuditLogger;
 use App\Foundation\Tenancy\CurrentTenant;
+use App\Modules\AppFactory\Application\TransitionAppProject;
+use App\Modules\AppFactory\Infrastructure\Models\AppProject;
 use App\Modules\Branding\Application\StoreBrandLogo;
 use App\Modules\Branding\Infrastructure\Models\BrandProfile;
 use App\Modules\TenantManagement\Infrastructure\Models\Tenant;
@@ -53,19 +55,26 @@ final class TenantBrandController extends Controller
         return back()->with('status', "Brand aggiornato: le modifiche arrivano sull'app alla prossima apertura.");
     }
 
-    public function uploadLogo(Request $request, string $uuid, StoreBrandLogo $storeLogo, AuditLogger $audit): RedirectResponse
+    public function uploadLogo(Request $request, string $uuid, StoreBrandLogo $storeLogo, TransitionAppProject $transition, AuditLogger $audit): RedirectResponse
     {
+        // Solo raster: l'Asset Factory deriva icone/splash con GD (no SVG).
         $request->validate([
-            'logo' => ['required', 'file', 'mimes:png,jpg,jpeg,svg', 'max:2048'],
+            'logo' => ['required', 'file', 'mimes:png,jpg,jpeg', 'dimensions:min_width=256,min_height=256', 'max:4096'],
         ]);
 
-        $this->currentTenant->bypass(function () use ($uuid, $request, $storeLogo, $audit): void {
+        $this->currentTenant->bypass(function () use ($uuid, $request, $storeLogo, $transition, $audit): void {
             $tenant = Tenant::query()->where('uuid', $uuid)->firstOrFail();
             $brand = BrandProfile::query()->where('tenant_id', $tenant->id)->firstOrFail();
 
             $storeLogo->store($brand, $request->file('logo'));
 
             $audit->log('control_room.logo_uploaded', $request->user('admin')->id, [], $tenant->id);
+
+            // Il logo è il segnale di "configurata": traccia la transizione.
+            $project = AppProject::query()->where('tenant_id', $tenant->id)->first();
+            if ($project !== null) {
+                $transition->markConfigured($project, $request->user('admin')->id);
+            }
         });
 
         return back()->with('status', 'Logo caricato.');
