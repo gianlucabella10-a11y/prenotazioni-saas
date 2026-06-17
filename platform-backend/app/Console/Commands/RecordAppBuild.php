@@ -58,17 +58,38 @@ final class RecordAppBuild extends Command
                 return null;
             }
 
-            $next = AppBuild::query()->where('app_project_id', $project->id)->count() + 1;
+            $terminal = in_array($status, ['built', 'published', 'failed'], true);
 
-            $build = AppBuild::query()->create([
-                'tenant_id' => $tenant->id,
-                'app_project_id' => $project->id,
-                'version' => $version !== '' ? $version : "1.0.0+{$next}",
-                'platform' => $platform,
-                'status' => $status,
-                'artifact_path' => $artifact,
-                'error_message' => $status === 'failed' ? $error : null,
-            ]);
+            // Completa la build in volo (queued/building) per la stessa piattaforma,
+            // così la timeline resta su un'unica riga; altrimenti ne crea una.
+            $build = AppBuild::query()
+                ->where('app_project_id', $project->id)
+                ->where('platform', $platform)
+                ->whereIn('status', ['queued', 'building'])
+                ->orderByDesc('id')
+                ->first();
+
+            if ($build !== null) {
+                $build->forceFill([
+                    'status' => $status,
+                    'artifact_path' => $artifact ?? $build->artifact_path,
+                    'error_message' => $status === 'failed' ? $error : $build->error_message,
+                    'finished_at' => $terminal ? now() : $build->finished_at,
+                ] + ($version !== '' ? ['version' => $version] : []))->save();
+            } else {
+                $next = AppBuild::query()->where('app_project_id', $project->id)->count() + 1;
+
+                $build = AppBuild::query()->create([
+                    'tenant_id' => $tenant->id,
+                    'app_project_id' => $project->id,
+                    'version' => $version !== '' ? $version : "1.0.0+{$next}",
+                    'platform' => $platform,
+                    'status' => $status,
+                    'artifact_path' => $artifact,
+                    'error_message' => $status === 'failed' ? $error : null,
+                    'finished_at' => $terminal ? now() : null,
+                ]);
+            }
 
             // Release train: alla pubblicazione fissa il core di build.
             if ($status === 'published') {

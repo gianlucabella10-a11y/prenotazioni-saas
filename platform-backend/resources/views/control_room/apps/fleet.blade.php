@@ -13,6 +13,16 @@
 </div>
 
 <div class="card">
+    <h3 style="margin-top:0">Build native</h3>
+    <div style="display:flex; gap:24px; flex-wrap:wrap">
+        <div><div style="font-size:28px; font-weight:700; color:#15803d">{{ $builds['succeeded'] }}</div><div class="muted">riuscite</div></div>
+        <div><div style="font-size:28px; font-weight:700; color:{{ $builds['failed'] > 0 ? '#dc2626' : 'inherit' }}">{{ $builds['failed'] }}</div><div class="muted">fallite</div></div>
+        <div><div style="font-size:28px; font-weight:700; color:{{ $builds['in_progress'] > 0 ? '#b45309' : 'inherit' }}">{{ $builds['in_progress'] }}</div><div class="muted">in corso</div></div>
+        <div><div style="font-size:28px; font-weight:700; color:#15803d">{{ $beta_active }}</div><div class="muted">beta attive</div></div>
+    </div>
+</div>
+
+<div class="card">
     <h3 style="margin-top:0">Stato build (tutte le app)</h3>
     @php
         $labels = [

@@ -139,6 +139,14 @@
 </div>
 @endif
 
+@if (session('beta_link'))
+<div class="card" style="border-left:3px solid #15803d">
+    <strong>Link beta (valido 7 giorni)</strong>
+    <p class="muted" style="margin:6px 0 0">Invialo all'esercente: apre il download dell'APK da installare sul telefono.</p>
+    <code style="display:block;word-break:break-all;font-size:12px;margin-top:6px">{{ session('beta_link') }}</code>
+</div>
+@endif
+
 <div class="card">
     <h2>Build / pacchetti</h2>
     @if ($builds->isEmpty())
@@ -156,17 +164,89 @@
                         @if ($build->error_message)
                             <div class="muted" style="font-size:11px;color:#dc2626">{{ \Illuminate\Support\Str::limit($build->error_message, 80) }}</div>
                         @endif
+                        @if ($build->build_log)
+                            <details style="margin-top:4px">
+                                <summary class="muted" style="font-size:11px;cursor:pointer">log{{ $build->duration_ms ? ' · '.round($build->duration_ms / 1000, 1).'s' : '' }}{{ ! is_null($build->exit_code) ? ' · exit '.$build->exit_code : '' }}</summary>
+                                <pre style="max-height:220px;overflow:auto;font-size:10px;background:#0b1220;color:#cbd5e1;padding:8px;border-radius:6px;white-space:pre-wrap">{{ $build->build_log }}</pre>
+                            </details>
+                        @endif
                     </td>
                     <td class="muted">{{ $build->created_at?->format('d/m/Y H:i') }}</td>
                     <td>
                         @if ($build->platform === 'config')
                             <a class="btn small secondary" href="{{ route('control.apps.download', [$project->uuid, $build->uuid]) }}">Scarica manifest</a>
+                        @elseif ($build->status === 'built' && $build->artifact_path)
+                            <form method="post" action="{{ route('control.apps.beta', [$project->uuid, $build->uuid]) }}" style="display:inline">
+                                @csrf <button class="btn small" type="submit">Link beta</button>
+                            </form>
+                            @if ($build->checksum)<div class="muted" style="font-size:10px">sha256:{{ \Illuminate\Support\Str::limit($build->checksum, 16, '…') }}</div>@endif
                         @elseif ($build->artifact_path)
-                            <code class="muted" style="font-size:12px">{{ $build->artifact_path }}</code>
+                            <code class="muted" style="font-size:12px">{{ \Illuminate\Support\Str::limit($build->artifact_path, 32) }}</code>
                         @else
                             <span class="muted">—</span>
                         @endif
                     </td>
+                </tr>
+            @endforeach
+        </table>
+    @endif
+</div>
+
+<div class="card">
+    <h2>Beta tester</h2>
+    <form method="post" action="{{ route('control.apps.testers.invite', $project->uuid) }}" style="display:flex;gap:8px;flex-wrap:wrap;align-items:end">
+        @csrf
+        <div><label style="font-size:12px">Nome</label><input type="text" name="name" required></div>
+        <div><label style="font-size:12px">Email</label><input type="email" name="email" required></div>
+        <div><label style="font-size:12px">Device (opz.)</label><input type="text" name="device"></div>
+        <button class="btn small" type="submit">Invita tester</button>
+    </form>
+    @if ($testers->isEmpty())
+        <div class="empty mt">Nessun tester invitato.</div>
+    @else
+        <table class="mt">
+            <tr><th>Nome</th><th>Email</th><th>Device</th><th>Stato</th><th></th></tr>
+            @foreach ($testers as $t)
+                @php $tc = ['active' => 'ok', 'blocked' => 'danger', 'invited' => 'warn'][$t->status] ?? 'off'; @endphp
+                <tr>
+                    <td>{{ $t->name }}</td>
+                    <td class="muted">{{ $t->email }}</td>
+                    <td class="muted">{{ $t->device ?? '—' }}</td>
+                    <td><span class="badge {{ $tc }}">{{ $t->status }}</span></td>
+                    <td>
+                        @if ($t->status !== 'active')
+                            <form method="post" action="{{ route('control.apps.testers.update', [$project->uuid, $t->uuid]) }}" style="display:inline">
+                                @csrf @method('PATCH')
+                                <input type="hidden" name="status" value="active">
+                                <button class="btn small secondary" type="submit">Attiva</button>
+                            </form>
+                        @endif
+                        @if ($t->status !== 'blocked')
+                            <form method="post" action="{{ route('control.apps.testers.update', [$project->uuid, $t->uuid]) }}" style="display:inline">
+                                @csrf @method('PATCH')
+                                <input type="hidden" name="status" value="blocked">
+                                <button class="btn small secondary" type="submit">Blocca</button>
+                            </form>
+                        @endif
+                    </td>
+                </tr>
+            @endforeach
+        </table>
+    @endif
+</div>
+
+<div class="card">
+    <h2>Feedback beta</h2>
+    @if ($feedback->isEmpty())
+        <div class="empty">Nessun feedback dai tester.</div>
+    @else
+        <table>
+            <tr><th>Quando</th><th>Versione</th><th>Messaggio</th></tr>
+            @foreach ($feedback as $f)
+                <tr>
+                    <td class="muted">{{ $f->created_at?->format('d/m/Y H:i') }}</td>
+                    <td class="muted">{{ $f->app_version ?? '—' }}{{ $f->platform ? ' · '.$f->platform : '' }}</td>
+                    <td>{{ \Illuminate\Support\Str::limit($f->message, 120) }}</td>
                 </tr>
             @endforeach
         </table>

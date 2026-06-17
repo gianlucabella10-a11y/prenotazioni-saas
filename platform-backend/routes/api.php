@@ -3,12 +3,13 @@
 declare(strict_types=1);
 
 use App\Foundation\Auth\Controllers\AuthController;
+use App\Modules\AppFactory\Http\Controllers\BetaFeedbackController;
 use App\Modules\Branding\Presentation\Controllers\AppConfigController;
-use App\Modules\Customers\Presentation\Controllers\MeController;
-use App\Modules\Notifications\Presentation\Controllers\DeviceController;
 use App\Modules\Branding\Presentation\Controllers\ManageBrandController;
 use App\Modules\Catalog\Presentation\Controllers\ManageServiceController;
 use App\Modules\Catalog\Presentation\Controllers\PublicCatalogController;
+use App\Modules\Customers\Presentation\Controllers\MeController;
+use App\Modules\Notifications\Presentation\Controllers\DeviceController;
 use App\Modules\Scheduling\Presentation\Controllers\AppointmentController;
 use App\Modules\Scheduling\Presentation\Controllers\AvailabilityController;
 use App\Modules\Scheduling\Presentation\Controllers\ManageAgendaController;
@@ -82,6 +83,9 @@ Route::middleware(['auth:api', 'auth.full', 'user.type:customer', 'throttle:api'
 
         Route::get('/me', [MeController::class, 'show']);
         Route::delete('/me', [MeController::class, 'destroy']);
+
+        // Feedback beta tester (FASE 6): non richiede email verificata.
+        Route::post('/me/feedback', [BetaFeedbackController::class, 'store'])->middleware('throttle:api');
 
         Route::middleware(['verified', 'tenant.operating'])->group(function (): void {
             Route::patch('/me', [MeController::class, 'update']);

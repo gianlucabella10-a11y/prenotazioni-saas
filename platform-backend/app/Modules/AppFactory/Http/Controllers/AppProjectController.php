@@ -8,18 +8,21 @@ use App\Foundation\Audit\AuditLogger;
 use App\Foundation\Tenancy\CurrentTenant;
 use App\Modules\AppFactory\Application\AppPreview;
 use App\Modules\AppFactory\Application\BuildFleet;
-use App\Modules\AppFactory\Application\DispatchAppBuild;
+use App\Modules\AppFactory\Application\BuildService;
 use App\Modules\AppFactory\Application\PrepareApp;
 use App\Modules\AppFactory\Domain\TemplateRegistry;
-use App\Modules\Branding\Application\RollbackBrandAssets;
 use App\Modules\AppFactory\Infrastructure\Models\AppBuild;
 use App\Modules\AppFactory\Infrastructure\Models\AppProject;
+use App\Modules\AppFactory\Infrastructure\Models\BetaFeedback;
+use App\Modules\AppFactory\Infrastructure\Models\BetaTester;
+use App\Modules\Branding\Application\RollbackBrandAssets;
 use App\Modules\Branding\Infrastructure\Models\BrandProfile;
 use App\Modules\TenantManagement\Infrastructure\Models\Tenant;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\URL;
 use Illuminate\View\View;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Symfony\Component\HttpFoundation\StreamedResponse;
@@ -65,8 +68,10 @@ final class AppProjectController extends Controller
             $tenant = Tenant::query()->findOrFail($project->tenant_id);
             $brand = BrandProfile::query()->where('tenant_id', $tenant->id)->first();
             $builds = AppBuild::query()->where('app_project_id', $project->id)->orderByDesc('id')->get();
+            $feedback = BetaFeedback::query()->where('tenant_id', $tenant->id)->orderByDesc('id')->limit(10)->get();
+            $testers = BetaTester::query()->where('tenant_id', $tenant->id)->orderByDesc('id')->get();
 
-            return compact('project', 'tenant', 'brand', 'builds');
+            return compact('project', 'tenant', 'brand', 'builds', 'feedback', 'testers');
         });
 
         $data['templates'] = $this->templates->all();
@@ -76,8 +81,8 @@ final class AppProjectController extends Controller
         return view('control_room.apps.show', $data);
     }
 
-    /** Avvia una build (FASE 4): crea la riga app_builds + transizione building. */
-    public function dispatchBuild(Request $request, string $uuid, DispatchAppBuild $dispatch): RedirectResponse
+    /** Accoda una build (FASE 1): crea app_builds(queued) + dispatch del worker. */
+    public function dispatchBuild(Request $request, string $uuid, BuildService $build): RedirectResponse
     {
         $data = $request->validate(['platform' => ['required', 'in:android,ios']]);
 
@@ -86,12 +91,100 @@ final class AppProjectController extends Controller
         );
 
         try {
-            $dispatch->execute($project, $data['platform'], $request->user('admin')->id);
+            $build->request($project, $data['platform'], $request->user('admin')->id);
         } catch (\RuntimeException $e) {
             return back()->with('error', $e->getMessage());
         }
 
-        return back()->with('status', "Build {$data['platform']} avviata: stato aggiornato a «In build».");
+        return back()->with('status', "Build {$data['platform']} accodata: l'avanzamento è tracciato nella timeline.");
+    }
+
+    /** Invita un beta tester (roster per-tenant). */
+    public function inviteTester(Request $request, string $uuid, AuditLogger $audit): RedirectResponse
+    {
+        $data = $request->validate([
+            'name' => ['required', 'string', 'max:120'],
+            'email' => ['required', 'email', 'max:255'],
+            'device' => ['nullable', 'string', 'max:120'],
+        ]);
+
+        $tenantId = $this->currentTenant->bypass(
+            fn (): int => AppProject::query()->where('uuid', $uuid)->firstOrFail()->tenant_id
+        );
+
+        $created = $this->currentTenant->bypass(function () use ($tenantId, $data): bool {
+            if (BetaTester::query()->where('tenant_id', $tenantId)->where('email', $data['email'])->exists()) {
+                return false;
+            }
+
+            BetaTester::query()->create([
+                'tenant_id' => $tenantId,
+                'name' => $data['name'],
+                'email' => $data['email'],
+                'device' => $data['device'] ?? null,
+                'status' => 'invited',
+            ]);
+
+            return true;
+        });
+
+        if (! $created) {
+            return back()->with('error', 'Tester già presente per questo cliente.');
+        }
+
+        $audit->log('beta_tester.invited', $request->user('admin')->id, ['email' => $data['email']], $tenantId);
+
+        return back()->with('status', "Tester invitato: {$data['email']}.");
+    }
+
+    /** Cambia lo stato di un tester (invited/active/blocked). */
+    public function updateTester(Request $request, string $uuid, string $tester, AuditLogger $audit): RedirectResponse
+    {
+        $data = $request->validate(['status' => ['required', 'in:'.implode(',', BetaTester::STATUSES)]]);
+
+        $tenantId = $this->currentTenant->bypass(function () use ($uuid, $tester, $data): ?int {
+            $project = AppProject::query()->where('uuid', $uuid)->firstOrFail();
+            $row = BetaTester::query()->where('tenant_id', $project->tenant_id)->where('uuid', $tester)->first();
+
+            if ($row === null) {
+                return null;
+            }
+
+            $row->forceFill(['status' => $data['status']])->save();
+
+            return $project->tenant_id;
+        });
+
+        if ($tenantId === null) {
+            return back()->with('error', 'Tester non trovato.');
+        }
+
+        $audit->log('beta_tester.status_changed', $request->user('admin')->id, ['tester' => $tester, 'status' => $data['status']], $tenantId);
+
+        return back()->with('status', 'Stato tester aggiornato.');
+    }
+
+    /** Genera un link beta privato (firmato, 7 giorni) per scaricare l'APK. */
+    public function betaLink(Request $request, string $uuid, string $build, AuditLogger $audit): RedirectResponse
+    {
+        $row = $this->currentTenant->bypass(function () use ($uuid, $build): ?AppBuild {
+            $project = AppProject::query()->where('uuid', $uuid)->firstOrFail();
+
+            return AppBuild::query()
+                ->where('app_project_id', $project->id)
+                ->where('uuid', $build)
+                ->where('status', 'built')
+                ->first();
+        });
+
+        if ($row === null) {
+            return back()->with('error', 'Build non distribuibile: serve lo stato «Compilata» con artifact.');
+        }
+
+        $url = URL::temporarySignedRoute('beta.download', now()->addDays(7), ['build' => $row->uuid]);
+        $audit->log('app_build.beta_link', $request->user('admin')->id, ['build' => $row->uuid], $row->tenant_id);
+
+        return back()->with('beta_link', $url);
     }
 
     /** Rollback dei derivati a una versione precedente (storico mai cancellato). */

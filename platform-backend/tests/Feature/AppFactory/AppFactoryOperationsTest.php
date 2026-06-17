@@ -6,6 +6,7 @@ namespace Tests\Feature\AppFactory;
 
 use App\Models\User;
 use App\Modules\AppFactory\Application\AllocateAppIdentifiers;
+use App\Modules\AppFactory\Application\PrepareApp;
 use App\Modules\AppFactory\Infrastructure\Models\AppBuild;
 use App\Modules\AppFactory\Infrastructure\Models\AppProject;
 use App\Modules\Branding\Application\GenerateBrandAssets;
@@ -42,9 +43,12 @@ final class AppFactoryOperationsTest extends TestCase
     public function test_super_admin_dispatches_build_via_control_room(): void
     {
         config(['app_factory.build_driver' => 'manual']);
+        Storage::fake('public');
+        Storage::fake('local');
         $admin = $this->actingSuperAdmin();
         $env = $this->provisionBookableTenant();
         $project = $this->projectFor($env['tenant'], $admin->id);
+        app(PrepareApp::class)->execute($project, $admin->id); // pacchetto generato (prerequisito build)
 
         $this->post("/control-room/apps/{$project->uuid}/build", ['platform' => 'android'])->assertRedirect();
 

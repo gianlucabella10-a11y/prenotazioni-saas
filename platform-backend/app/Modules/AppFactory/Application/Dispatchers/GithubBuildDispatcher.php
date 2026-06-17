@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Modules\AppFactory\Application\Dispatchers;
 
 use App\Modules\AppFactory\Application\BuildDispatcher;
+use App\Modules\AppFactory\Application\BuildDispatchResult;
 use App\Modules\AppFactory\Infrastructure\Models\AppProject;
 use Illuminate\Contracts\Config\Repository as Config;
 use Illuminate\Support\Facades\Http;
@@ -20,7 +21,7 @@ final class GithubBuildDispatcher implements BuildDispatcher
 {
     public function __construct(private readonly Config $config) {}
 
-    public function dispatch(AppProject $project, string $platform): string
+    public function dispatch(AppProject $project, string $platform): BuildDispatchResult
     {
         $repo = (string) $this->config->get('app_factory.github.repo', '');
         $token = (string) $this->config->get('app_factory.github.token', '');
@@ -45,7 +46,7 @@ final class GithubBuildDispatcher implements BuildDispatcher
             throw new RuntimeException("Dispatch GitHub fallito ({$response->status()}): ".$response->body());
         }
 
-        return "github://{$repo}/actions/workflows/{$workflow}";
+        return BuildDispatchResult::remote("github://{$repo}/actions/workflows/{$workflow}");
     }
 
     public function name(): string

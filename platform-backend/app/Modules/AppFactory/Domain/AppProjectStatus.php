@@ -12,6 +12,7 @@ enum AppProjectStatus: string
     case Ready = 'ready';                 // pronta per la generazione
     case Generated = 'generated';         // manifest prodotto (senza asset)
     case ReadyToBuild = 'ready_to_build'; // manifest + asset pronti per la build (FASE 2A)
+    case Queued = 'queued';               // build accodata (worker), pre-compilazione
     case Building = 'building';           // build/firma in corso (CI, FASE 2C)
     case Built = 'built';                 // artifact prodotto (AAB/IPA), pre-store
     case Published = 'published';         // pubblicata sugli store (FASE 2C)

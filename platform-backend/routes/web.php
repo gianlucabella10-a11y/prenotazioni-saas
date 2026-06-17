@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Modules\AppFactory\Http\Controllers\AppProjectController;
+use App\Modules\AppFactory\Http\Controllers\BetaDownloadController;
 use App\Modules\ControlRoom\Http\Controllers\ControlRoomAuthController;
 use App\Modules\ControlRoom\Http\Controllers\TenantBrandController;
 use App\Modules\ControlRoom\Http\Controllers\TenantInviteController;
@@ -133,8 +134,21 @@ Route::prefix('control-room')->group(function (): void {
         Route::put('/apps/{uuid}/template', [AppProjectController::class, 'updateTemplate'])->name('control.apps.template');
         Route::post('/apps/{uuid}/genera', [AppProjectController::class, 'generate'])->name('control.apps.generate');
         Route::post('/apps/{uuid}/build', [AppProjectController::class, 'dispatchBuild'])->name('control.apps.build');
+        Route::post('/apps/{uuid}/beta-link/{build}', [AppProjectController::class, 'betaLink'])->name('control.apps.beta');
+        Route::post('/apps/{uuid}/testers', [AppProjectController::class, 'inviteTester'])->name('control.apps.testers.invite');
+        Route::patch('/apps/{uuid}/testers/{tester}', [AppProjectController::class, 'updateTester'])->name('control.apps.testers.update');
         Route::post('/apps/{uuid}/rollback', [AppProjectController::class, 'rollbackAssets'])->name('control.apps.rollback');
         Route::get('/apps/{uuid}/download/{build}', [AppProjectController::class, 'download'])->name('control.apps.download');
         Route::get('/apps/{uuid}/package', [AppProjectController::class, 'downloadPackage'])->name('control.apps.package');
     });
 });
+
+/*
+|--------------------------------------------------------------------------
+| Distribuzione beta privata (FASE 4)
+|--------------------------------------------------------------------------
+| Link FIRMATO con scadenza (middleware `signed`): l'esercente scarica l'APK
+| senza login. Nessun tenant in sessione; l'accesso è garantito dalla firma.
+*/
+Route::get('/beta/download/{build}', [BetaDownloadController::class, 'download'])
+    ->name('beta.download')->middleware('signed');

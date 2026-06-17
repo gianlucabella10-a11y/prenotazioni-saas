@@ -17,6 +17,15 @@ class AppBuild extends Model
 
     protected $guarded = ['id'];
 
+    protected function casts(): array
+    {
+        return [
+            'queued_at' => 'datetime',
+            'started_at' => 'datetime',
+            'finished_at' => 'datetime',
+        ];
+    }
+
     public function uniqueIds(): array
     {
         return ['uuid'];

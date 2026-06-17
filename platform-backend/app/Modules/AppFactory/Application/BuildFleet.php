@@ -8,6 +8,7 @@ use App\Foundation\Tenancy\CurrentTenant;
 use App\Modules\AppFactory\Domain\AppProjectStatus;
 use App\Modules\AppFactory\Infrastructure\Models\AppBuild;
 use App\Modules\AppFactory\Infrastructure\Models\AppProject;
+use App\Modules\AppFactory\Infrastructure\Models\BetaTester;
 use App\Modules\TenantManagement\Infrastructure\Models\Tenant;
 use Illuminate\Contracts\Config\Repository as Config;
 use Illuminate\Database\Eloquent\Builder;
@@ -91,8 +92,18 @@ final readonly class BuildFleet
 
             $buildable = AppProject::query()->whereIn('build_status', self::BUILDABLE)->count();
 
-            $recent = AppBuild::query()->orderByDesc('id')->limit(15)->get();
+            $recent = AppBuild::query()->where('platform', '!=', 'config')->orderByDesc('id')->limit(15)->get();
             $tenants = Tenant::query()->whereIn('id', $recent->pluck('tenant_id')->unique()->all())->get()->keyBy('id');
+
+            // Contatori build native (escluso il record 'config' di generazione).
+            $buildRows = AppBuild::query()->where('platform', '!=', 'config');
+            $builds = [
+                'succeeded' => (clone $buildRows)->whereIn('status', ['built', 'published'])->count(),
+                'failed' => (clone $buildRows)->where('status', 'failed')->count(),
+                'in_progress' => (clone $buildRows)->whereIn('status', ['queued', 'building'])->count(),
+            ];
+
+            $betaActive = BetaTester::query()->where('status', 'active')->count();
 
             return [
                 'by_status' => $byStatus,
@@ -100,6 +111,8 @@ final readonly class BuildFleet
                 'stale' => $stale,
                 'on_current' => $onCurrent,
                 'buildable' => $buildable,
+                'builds' => $builds,
+                'beta_active' => $betaActive,
                 'recent' => $recent,
                 'tenants' => $tenants,
             ];

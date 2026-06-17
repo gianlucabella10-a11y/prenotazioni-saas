@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Modules\AppFactory\Application\Dispatchers;
 
 use App\Modules\AppFactory\Application\BuildDispatcher;
+use App\Modules\AppFactory\Application\BuildDispatchResult;
 use App\Modules\AppFactory\Infrastructure\Models\AppProject;
 use Illuminate\Support\Facades\Log;
 
@@ -16,7 +17,7 @@ use Illuminate\Support\Facades\Log;
  */
 final class LogBuildDispatcher implements BuildDispatcher
 {
-    public function dispatch(AppProject $project, string $platform): string
+    public function dispatch(AppProject $project, string $platform): BuildDispatchResult
     {
         Log::info('app_factory.build.dispatch', [
             'tenant_id' => $project->tenant_id,
@@ -24,7 +25,7 @@ final class LogBuildDispatcher implements BuildDispatcher
             'platform' => $platform,
         ]);
 
-        return "manual://workflow-dispatch/{$project->uuid}/{$platform}";
+        return BuildDispatchResult::remote("manual://workflow-dispatch/{$project->uuid}/{$platform}");
     }
 
     public function name(): string
