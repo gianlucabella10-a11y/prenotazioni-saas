@@ -166,7 +166,7 @@
                         @endif
                         @if ($build->build_log)
                             <details style="margin-top:4px">
-                                <summary class="muted" style="font-size:11px;cursor:pointer">log{{ $build->duration_ms ? ' · '.round($build->duration_ms / 1000, 1).'s' : '' }}{{ ! is_null($build->exit_code) ? ' · exit '.$build->exit_code : '' }}</summary>
+                                <summary class="muted" style="font-size:11px;cursor:pointer">log{{ $build->size_bytes ? ' · '.round($build->size_bytes / 1048576, 1).' MB' : '' }}{{ $build->duration_ms ? ' · '.round($build->duration_ms / 1000, 1).'s' : '' }}{{ ! is_null($build->exit_code) ? ' · exit '.$build->exit_code : '' }}</summary>
                                 <pre style="max-height:220px;overflow:auto;font-size:10px;background:#0b1220;color:#cbd5e1;padding:8px;border-radius:6px;white-space:pre-wrap">{{ $build->build_log }}</pre>
                             </details>
                         @endif
@@ -191,6 +191,71 @@
         </table>
     @endif
 </div>
+
+<div class="card">
+    <h2>Versioni</h2>
+    <form method="post" action="{{ route('control.apps.versions.store', $project->uuid) }}" style="display:flex;gap:8px;flex-wrap:wrap;align-items:end">
+        @csrf
+        <div><label style="font-size:12px">Versione</label><input type="text" name="version" placeholder="1.0.0" required></div>
+        <div><label style="font-size:12px">Build #</label><input type="number" name="build_number" min="1" required></div>
+        <div style="flex:1;min-width:160px"><label style="font-size:12px">Note di rilascio</label><input type="text" name="release_notes"></div>
+        <button class="btn small" type="submit">Registra versione</button>
+    </form>
+    @if ($versions->isEmpty())
+        <div class="empty mt">Nessuna versione registrata.</div>
+    @else
+        <table class="mt">
+            <tr><th>Versione</th><th>Build</th><th>Note</th><th>Stato</th><th></th></tr>
+            @foreach ($versions as $v)
+                @php $vc = $v->status === 'active' ? 'ok' : 'off'; @endphp
+                <tr>
+                    <td><strong>{{ $v->version }}</strong></td>
+                    <td class="muted">{{ $v->build_number }}</td>
+                    <td class="muted">{{ \Illuminate\Support\Str::limit($v->release_notes ?? '—', 60) }}</td>
+                    <td><span class="badge {{ $vc }}">{{ $v->status }}</span></td>
+                    <td>
+                        @if ($v->status === 'active')
+                            <form method="post" action="{{ route('control.apps.versions.update', [$project->uuid, $v->uuid]) }}" style="display:inline">
+                                @csrf @method('PATCH')
+                                <input type="hidden" name="status" value="deprecated">
+                                <button class="btn small secondary" type="submit">Deprecata</button>
+                            </form>
+                        @endif
+                    </td>
+                </tr>
+            @endforeach
+        </table>
+    @endif
+</div>
+
+@if ($betaTokens->isNotEmpty())
+<div class="card">
+    <h2>Link beta</h2>
+    <table>
+        <tr><th>Token</th><th>Download</th><th>Scadenza</th><th>Stato</th><th></th></tr>
+        @foreach ($betaTokens as $tk)
+            @php
+                $tkClass = ! is_null($tk->revoked_at) ? 'danger' : ($tk->expires_at->isPast() ? 'off' : 'ok');
+                $tkLabel = ! is_null($tk->revoked_at) ? 'revocato' : ($tk->expires_at->isPast() ? 'scaduto' : 'attivo');
+            @endphp
+            <tr>
+                <td><code class="muted" style="font-size:11px">…{{ substr($tk->token, -8) }}</code></td>
+                <td class="muted">{{ $tk->download_count }}{{ $tk->max_downloads ? ' / '.$tk->max_downloads : '' }}</td>
+                <td class="muted">{{ $tk->expires_at->format('d/m/Y') }}</td>
+                <td><span class="badge {{ $tkClass }}">{{ $tkLabel }}</span></td>
+                <td>
+                    @if (is_null($tk->revoked_at))
+                        <form method="post" action="{{ route('control.apps.beta.revoke', [$project->uuid, $tk->id]) }}" style="display:inline">
+                            @csrf
+                            <button class="btn small secondary" type="submit">Revoca</button>
+                        </form>
+                    @endif
+                </td>
+            </tr>
+        @endforeach
+    </table>
+</div>
+@endif
 
 <div class="card">
     <h2>Beta tester</h2>

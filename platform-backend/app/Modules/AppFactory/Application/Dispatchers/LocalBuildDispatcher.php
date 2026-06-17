@@ -50,8 +50,9 @@ final class LocalBuildDispatcher implements BuildDispatcher
             array_map(static fn ($k, $v): string => "--dart-define={$k}={$v}", array_keys($dartDefine), array_values($dartDefine)),
         );
 
-        // Pipeline reale: validazione + test + build (mai successo simulato).
+        // Pipeline reale: clean + deps + validazione + test + build (mai simulato).
         $steps = [
+            ['flutter', 'clean'],
             ['flutter', 'pub', 'get'],
             ['flutter', 'analyze'],
             ['flutter', 'test'],
@@ -96,6 +97,7 @@ final class LocalBuildDispatcher implements BuildDispatcher
             mb_substr($log, -8000),
             0,
             (int) round((microtime(true) - $start) * 1000),
+            (int) (filesize($apk) ?: 0),
         );
     }
 

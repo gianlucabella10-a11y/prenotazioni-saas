@@ -21,6 +21,7 @@ final readonly class BuildDispatchResult
         public ?string $log = null,
         public ?int $exitCode = null,
         public ?int $durationMs = null,
+        public ?int $sizeBytes = null,
     ) {}
 
     /** Build avviata altrove (worker/CI): esito atteso via callback. */
@@ -38,7 +39,8 @@ final readonly class BuildDispatchResult
         string $log,
         int $exitCode,
         int $durationMs,
+        int $sizeBytes,
     ): self {
-        return new self($reference, true, $artifactPath, $checksum, $command, $log, $exitCode, $durationMs);
+        return new self($reference, true, $artifactPath, $checksum, $command, $log, $exitCode, $durationMs, $sizeBytes);
     }
 }

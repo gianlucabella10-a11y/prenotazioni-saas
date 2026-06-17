@@ -39,6 +39,9 @@ return [
     'flutter_app_dir' => env('APP_FACTORY_FLUTTER_APP_DIR', base_path('../platform-mobile/apps/client_app')),
     'artifact_disk' => env('APP_FACTORY_ARTIFACT_DISK', 'local'),
     'build_timeout' => (int) env('APP_FACTORY_BUILD_TIMEOUT', 1800),
+
+    // Limite download per un link beta (null/0 = illimitato). Scadenza link: 7g.
+    'beta_max_downloads' => (int) env('APP_FACTORY_BETA_MAX_DOWNLOADS', 50),
     'github' => [
         'repo' => env('APP_FACTORY_GITHUB_REPO', ''),        // es. owner/repo
         'token' => env('APP_FACTORY_GITHUB_TOKEN', ''),      // PAT/fine-grained con scope actions

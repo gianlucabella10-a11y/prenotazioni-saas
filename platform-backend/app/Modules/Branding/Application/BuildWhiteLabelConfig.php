@@ -7,6 +7,7 @@ namespace App\Modules\Branding\Application;
 use App\Foundation\Tenancy\CurrentTenant;
 use App\Modules\AppFactory\Domain\TemplateRegistry;
 use App\Modules\AppFactory\Infrastructure\Models\AppProject;
+use App\Modules\AppFactory\Infrastructure\Models\AppVersion;
 use App\Modules\Branding\Infrastructure\Models\BrandAsset;
 use App\Modules\Branding\Infrastructure\Models\BrandProfile;
 use App\Modules\Catalog\Infrastructure\Models\Location;
@@ -68,6 +69,10 @@ final readonly class BuildWhiteLabelConfig
             ? (string) $appProject->template_code
             : TemplateRegistry::DEFAULT_CODE;
 
+        // Ultima versione attiva (prep forced-update: il client potrà confrontare
+        // il proprio build_number). Tenant-scoped; null se nessuna versione.
+        $release = AppVersion::query()->where('status', 'active')->orderByDesc('build_number')->first();
+
         $payload = [
             'tenant_status' => $tenant->status->value,
             'config_version' => $brand->config_version,
@@ -79,6 +84,11 @@ final readonly class BuildWhiteLabelConfig
             'font_style' => $appProject?->font_style ?? $this->templates->fontStyle($templateCode),
             // Sezioni e ordine del template (data-ready per il rendering dinamico).
             'sections' => $this->templates->sections($templateCode),
+            // Release corrente (prep forced-update; il client per ora la ignora).
+            'release' => $release === null ? null : [
+                'version' => $release->version,
+                'build_number' => $release->build_number,
+            ],
             'theme' => $brand->theme,
             'locale_default' => $tenant->locale,
             'features' => $tenant->features,

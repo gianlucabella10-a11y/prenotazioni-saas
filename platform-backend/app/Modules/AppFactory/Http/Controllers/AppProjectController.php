@@ -13,6 +13,8 @@ use App\Modules\AppFactory\Application\PrepareApp;
 use App\Modules\AppFactory\Domain\TemplateRegistry;
 use App\Modules\AppFactory\Infrastructure\Models\AppBuild;
 use App\Modules\AppFactory\Infrastructure\Models\AppProject;
+use App\Modules\AppFactory\Infrastructure\Models\AppVersion;
+use App\Modules\AppFactory\Infrastructure\Models\BetaDownloadToken;
 use App\Modules\AppFactory\Infrastructure\Models\BetaFeedback;
 use App\Modules\AppFactory\Infrastructure\Models\BetaTester;
 use App\Modules\Branding\Application\RollbackBrandAssets;
@@ -22,7 +24,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
 use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Facades\URL;
+use Illuminate\Support\Str;
 use Illuminate\View\View;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Symfony\Component\HttpFoundation\StreamedResponse;
@@ -70,8 +72,10 @@ final class AppProjectController extends Controller
             $builds = AppBuild::query()->where('app_project_id', $project->id)->orderByDesc('id')->get();
             $feedback = BetaFeedback::query()->where('tenant_id', $tenant->id)->orderByDesc('id')->limit(10)->get();
             $testers = BetaTester::query()->where('tenant_id', $tenant->id)->orderByDesc('id')->get();
+            $betaTokens = BetaDownloadToken::query()->whereIn('app_build_id', $builds->pluck('id'))->orderByDesc('id')->get();
+            $versions = AppVersion::query()->where('app_project_id', $project->id)->orderByDesc('build_number')->get();
 
-            return compact('project', 'tenant', 'brand', 'builds', 'feedback', 'testers');
+            return compact('project', 'tenant', 'brand', 'builds', 'feedback', 'testers', 'betaTokens', 'versions');
         });
 
         $data['templates'] = $this->templates->all();
@@ -97,6 +101,70 @@ final class AppProjectController extends Controller
         }
 
         return back()->with('status', "Build {$data['platform']} accodata: l'avanzamento è tracciato nella timeline.");
+    }
+
+    /** Registra una versione rilasciata (FASE 4). */
+    public function storeVersion(Request $request, string $uuid, AuditLogger $audit): RedirectResponse
+    {
+        $data = $request->validate([
+            'version' => ['required', 'string', 'max:32'],
+            'build_number' => ['required', 'integer', 'min:1'],
+            'release_notes' => ['nullable', 'string', 'max:2000'],
+        ]);
+
+        $tenantId = $this->currentTenant->bypass(function () use ($uuid, $data): ?int {
+            $project = AppProject::query()->where('uuid', $uuid)->firstOrFail();
+
+            if (AppVersion::query()->where('app_project_id', $project->id)->where('version', $data['version'])->exists()) {
+                return null;
+            }
+
+            AppVersion::query()->create([
+                'tenant_id' => $project->tenant_id,
+                'app_project_id' => $project->id,
+                'version' => $data['version'],
+                'build_number' => $data['build_number'],
+                'release_notes' => $data['release_notes'] ?? null,
+                'status' => 'active',
+            ]);
+
+            return $project->tenant_id;
+        });
+
+        if ($tenantId === null) {
+            return back()->with('error', 'Versione già presente.');
+        }
+
+        $audit->log('app_version.created', $request->user('admin')->id, ['version' => $data['version']], $tenantId);
+
+        return back()->with('status', "Versione {$data['version']} registrata.");
+    }
+
+    /** Cambia lo stato di una versione (active/deprecated). */
+    public function updateVersion(Request $request, string $uuid, string $version, AuditLogger $audit): RedirectResponse
+    {
+        $data = $request->validate(['status' => ['required', 'in:'.implode(',', AppVersion::STATUSES)]]);
+
+        $tenantId = $this->currentTenant->bypass(function () use ($uuid, $version, $data): ?int {
+            $project = AppProject::query()->where('uuid', $uuid)->firstOrFail();
+            $row = AppVersion::query()->where('app_project_id', $project->id)->where('uuid', $version)->first();
+
+            if ($row === null) {
+                return null;
+            }
+
+            $row->forceFill(['status' => $data['status']])->save();
+
+            return $project->tenant_id;
+        });
+
+        if ($tenantId === null) {
+            return back()->with('error', 'Versione non trovata.');
+        }
+
+        $audit->log('app_version.status_changed', $request->user('admin')->id, ['version' => $version, 'status' => $data['status']], $tenantId);
+
+        return back()->with('status', 'Stato versione aggiornato.');
     }
 
     /** Invita un beta tester (roster per-tenant). */
@@ -164,27 +232,72 @@ final class AppProjectController extends Controller
         return back()->with('status', 'Stato tester aggiornato.');
     }
 
-    /** Genera un link beta privato (firmato, 7 giorni) per scaricare l'APK. */
+    /** Genera un link beta privato (token revocabile, 7 giorni) per scaricare l'APK. */
     public function betaLink(Request $request, string $uuid, string $build, AuditLogger $audit): RedirectResponse
     {
-        $row = $this->currentTenant->bypass(function () use ($uuid, $build): ?AppBuild {
-            $project = AppProject::query()->where('uuid', $uuid)->firstOrFail();
+        $actorId = $request->user('admin')->id;
 
-            return AppBuild::query()
+        $token = $this->currentTenant->bypass(function () use ($uuid, $build, $actorId): ?string {
+            $project = AppProject::query()->where('uuid', $uuid)->firstOrFail();
+            $row = AppBuild::query()
                 ->where('app_project_id', $project->id)
                 ->where('uuid', $build)
                 ->where('status', 'built')
                 ->first();
+
+            if ($row === null || $row->artifact_path === null) {
+                return null;
+            }
+
+            $token = Str::random(48);
+            BetaDownloadToken::query()->create([
+                'token' => $token,
+                'tenant_id' => $row->tenant_id,
+                'app_build_id' => $row->id,
+                'expires_at' => now()->addDays(7),
+                'max_downloads' => (int) config('app_factory.beta_max_downloads', 50),
+                'created_by' => $actorId,
+            ]);
+
+            return $token;
         });
 
-        if ($row === null) {
+        if ($token === null) {
             return back()->with('error', 'Build non distribuibile: serve lo stato «Compilata» con artifact.');
         }
 
-        $url = URL::temporarySignedRoute('beta.download', now()->addDays(7), ['build' => $row->uuid]);
-        $audit->log('app_build.beta_link', $request->user('admin')->id, ['build' => $row->uuid], $row->tenant_id);
+        $audit->log('app_build.beta_link', $actorId, ['build' => $build], null);
 
-        return back()->with('beta_link', $url);
+        return back()->with('beta_link', route('beta.download', ['token' => $token]));
+    }
+
+    /** Revoca un link beta (il download smette di funzionare). */
+    public function revokeBetaLink(Request $request, string $uuid, int $token, AuditLogger $audit): RedirectResponse
+    {
+        $done = $this->currentTenant->bypass(function () use ($uuid, $token): bool {
+            $project = AppProject::query()->where('uuid', $uuid)->firstOrFail();
+            $row = BetaDownloadToken::query()
+                ->where('tenant_id', $project->tenant_id)
+                ->where('id', $token)
+                ->whereNull('revoked_at')
+                ->first();
+
+            if ($row === null) {
+                return false;
+            }
+
+            $row->forceFill(['revoked_at' => now()])->save();
+
+            return true;
+        });
+
+        if (! $done) {
+            return back()->with('error', 'Link non trovato o già revocato.');
+        }
+
+        $audit->log('app_build.beta_link_revoked', $request->user('admin')->id, ['token_id' => $token], null);
+
+        return back()->with('status', 'Link beta revocato.');
     }
 
     /** Rollback dei derivati a una versione precedente (storico mai cancellato). */

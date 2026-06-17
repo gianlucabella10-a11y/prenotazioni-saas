@@ -68,6 +68,7 @@ final class BuildPipelineTest extends TestCase
                     "$ flutter build apk\nBuilt build/app/outputs/flutter-apk/app-release.apk",
                     0,
                     4200,
+                    7340032,
                 );
             }
 
@@ -85,6 +86,7 @@ final class BuildPipelineTest extends TestCase
         self::assertSame('built', $fresh->status);
         self::assertSame(hash('sha256', 'REAL-APK'), $fresh->checksum);
         self::assertSame(4200, $fresh->duration_ms);
+        self::assertSame(7340032, $fresh->size_bytes);
         self::assertNotNull($fresh->build_log);
         self::assertNotNull($fresh->finished_at);
         self::assertStringContainsString('builds/', (string) $fresh->artifact_path);

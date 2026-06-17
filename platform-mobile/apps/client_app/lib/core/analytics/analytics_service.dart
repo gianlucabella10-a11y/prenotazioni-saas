@@ -10,7 +10,9 @@ enum AnalyticsEvent {
   bookingCreated('booking_created'),
   bookingCompleted('booking_completed'),
   bookingCancelled('booking_cancelled'),
+  bookingFailed('booking_failed'),
   notificationOpen('notification_open'),
+  apiError('api_error'),
   error('error');
 
   const AnalyticsEvent(this.key);
@@ -59,6 +61,12 @@ class AnalyticsService {
 
   void bookingCancelled(String appointmentId) =>
       track(AnalyticsEvent.bookingCancelled, {'appointment_id': appointmentId});
+
+  void bookingFailed(String reason) =>
+      track(AnalyticsEvent.bookingFailed, {'reason': reason});
+
+  void apiError(String endpoint, {int? status}) =>
+      track(AnalyticsEvent.apiError, {'endpoint': endpoint, 'status': ?status});
 
   void notificationOpen(String type) =>
       track(AnalyticsEvent.notificationOpen, {'type': type});

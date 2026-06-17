@@ -135,8 +135,11 @@ Route::prefix('control-room')->group(function (): void {
         Route::post('/apps/{uuid}/genera', [AppProjectController::class, 'generate'])->name('control.apps.generate');
         Route::post('/apps/{uuid}/build', [AppProjectController::class, 'dispatchBuild'])->name('control.apps.build');
         Route::post('/apps/{uuid}/beta-link/{build}', [AppProjectController::class, 'betaLink'])->name('control.apps.beta');
+        Route::post('/apps/{uuid}/beta-link/{token}/revoca', [AppProjectController::class, 'revokeBetaLink'])->name('control.apps.beta.revoke');
         Route::post('/apps/{uuid}/testers', [AppProjectController::class, 'inviteTester'])->name('control.apps.testers.invite');
         Route::patch('/apps/{uuid}/testers/{tester}', [AppProjectController::class, 'updateTester'])->name('control.apps.testers.update');
+        Route::post('/apps/{uuid}/versioni', [AppProjectController::class, 'storeVersion'])->name('control.apps.versions.store');
+        Route::patch('/apps/{uuid}/versioni/{version}', [AppProjectController::class, 'updateVersion'])->name('control.apps.versions.update');
         Route::post('/apps/{uuid}/rollback', [AppProjectController::class, 'rollbackAssets'])->name('control.apps.rollback');
         Route::get('/apps/{uuid}/download/{build}', [AppProjectController::class, 'download'])->name('control.apps.download');
         Route::get('/apps/{uuid}/package', [AppProjectController::class, 'downloadPackage'])->name('control.apps.package');
@@ -147,8 +150,9 @@ Route::prefix('control-room')->group(function (): void {
 |--------------------------------------------------------------------------
 | Distribuzione beta privata (FASE 4)
 |--------------------------------------------------------------------------
-| Link FIRMATO con scadenza (middleware `signed`): l'esercente scarica l'APK
-| senza login. Nessun tenant in sessione; l'accesso è garantito dalla firma.
+| Link con TOKEN opaco (scadenza + limite + conteggio + revoca): l'esercente
+| scarica l'APK senza login. Nessun tenant in sessione; l'accesso è garantito
+| dal token segreto (validato lato controller).
 */
-Route::get('/beta/download/{build}', [BetaDownloadController::class, 'download'])
-    ->name('beta.download')->middleware('signed');
+Route::get('/beta/download/{token}', [BetaDownloadController::class, 'download'])
+    ->name('beta.download');

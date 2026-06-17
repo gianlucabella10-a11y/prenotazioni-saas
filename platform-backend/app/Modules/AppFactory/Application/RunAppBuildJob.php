@@ -71,6 +71,7 @@ final class RunAppBuildJob implements ShouldQueue
                         'status' => 'built',
                         'artifact_path' => $result->artifactPath,
                         'checksum' => $result->checksum,
+                        'size_bytes' => $result->sizeBytes,
                         'command' => $result->command,
                         'build_log' => $result->log,
                         'exit_code' => $result->exitCode,
