@@ -108,7 +108,9 @@ final class BuildPipelineTest extends TestCase
 
         $fresh = $this->bypassTenancy(fn (): AppBuild => AppBuild::query()->findOrFail($build->id));
         self::assertSame('failed', $fresh->status);
-        self::assertNotNull($fresh->error_message);
+        // Il manifest si risolve (sotto l'UUID del tenant): il fallimento è la
+        // cartella Flutter assente, NON "Manifest assente" (regressione bug uuid).
+        self::assertStringContainsString('Flutter', (string) $fresh->error_message);
         self::assertSame('failed', $this->bypassTenancy(fn (): string => AppProject::query()->findOrFail($fresh->app_project_id)->build_status->value));
     }
 }

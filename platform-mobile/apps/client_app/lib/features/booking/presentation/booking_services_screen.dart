@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -21,9 +22,10 @@ class BookingServicesScreen extends ConsumerWidget {
     final services = ref.watch(servicesProvider);
     final staff = ref.watch(staffProvider);
     final flow = ref.watch(bookingFlowProvider);
+    final summary = ref.watch(bookingSelectionSummaryProvider);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Nuova prenotazione')),
+      appBar: AppBar(title: const Text('Cosa prenoti?')),
       body: services.when(
         data: (items) {
           if (items.isEmpty) {
@@ -36,16 +38,9 @@ class BookingServicesScreen extends ConsumerWidget {
 
           return Column(
             children: [
-              Padding(
-                padding: const EdgeInsets.all(16),
-                child: Text(
-                  'Seleziona uno o più servizi',
-                  style: Theme.of(context).textTheme.titleMedium,
-                ),
-              ),
               Expanded(
                 child: ListView.builder(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
                   itemCount: items.length,
                   itemBuilder: (context, index) {
                     final service = items[index];
@@ -60,38 +55,71 @@ class BookingServicesScreen extends ConsumerWidget {
                       selected: selected,
                     );
 
-                    return Card(
-                      margin: const EdgeInsets.only(bottom: 10),
-                      child: ListTile(
-                        enabled: compatible,
-                        onTap: compatible
-                            ? () => ref
-                                .read(bookingFlowProvider.notifier)
-                                .toggleVariant(
-                                  variantUuid: variant.uuid,
-                                  serviceUuid: service.uuid,
+                    final theme = Theme.of(context);
+                    final scheme = theme.colorScheme;
+                    final hasDetail = service.description != null ||
+                        service.variants.length > 1;
+
+                    return Semantics(
+                      enabled: compatible,
+                      hint: compatible
+                          ? null
+                          : 'Non prenotabile insieme ai servizi già scelti',
+                      child: Card(
+                        margin: const EdgeInsets.only(bottom: 12),
+                        child: ListTile(
+                          enabled: compatible,
+                          onTap: compatible
+                              ? () {
+                                  HapticFeedback.selectionClick();
+                                  ref
+                                      .read(bookingFlowProvider.notifier)
+                                      .toggleVariant(
+                                        variantUuid: variant.uuid,
+                                        serviceUuid: service.uuid,
+                                      );
+                                }
+                              : null,
+                          leading: Icon(
+                            selected
+                                ? Icons.check_circle
+                                : Icons.circle_outlined,
+                            color: selected
+                                ? scheme.secondary
+                                : scheme.onSurfaceVariant,
+                          ),
+                          title: Text(service.name),
+                          subtitle: Text.rich(
+                            TextSpan(
+                              style: theme.textTheme.bodyMedium
+                                  ?.copyWith(color: scheme.onSurfaceVariant),
+                              children: [
+                                TextSpan(
+                                  text:
+                                      Formats.duration(variant.durationMinutes),
+                                ),
+                                const TextSpan(text: '   ·   '),
+                                TextSpan(
+                                  text: Formats.price(
+                                    variant.priceCents,
+                                    variant.currency,
+                                  ),
+                                  style: TextStyle(
+                                    color: scheme.onSurface,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          trailing: hasDetail
+                              ? IconButton(
+                                  icon: const Icon(Icons.info_outline),
+                                  tooltip: 'Dettagli e varianti',
+                                  onPressed: () => _showDetail(context, service),
                                 )
-                            : null,
-                        leading: Icon(
-                          selected
-                              ? Icons.check_circle
-                              : Icons.radio_button_unchecked,
-                          color: selected
-                              ? Theme.of(context).colorScheme.secondary
                               : null,
                         ),
-                        title: Text(service.name),
-                        subtitle: Text(
-                          '${Formats.duration(variant.durationMinutes)} · '
-                          '${Formats.price(variant.priceCents, variant.currency)}',
-                        ),
-                        trailing: service.description == null
-                            ? null
-                            : IconButton(
-                                icon: const Icon(Icons.info_outline),
-                                onPressed: () =>
-                                    _showDetail(context, service),
-                              ),
                       ),
                     );
                   },
@@ -100,12 +128,21 @@ class BookingServicesScreen extends ConsumerWidget {
               SafeArea(
                 child: Padding(
                   padding: const EdgeInsets.all(16),
-                  child: FilledButton.icon(
-                    icon: const Icon(Icons.arrow_forward),
-                    label: const Text('Continua'),
-                    onPressed: flow.hasSelection
-                        ? () => context.push(Routes.bookingSchedule)
-                        : null,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (!summary.isEmpty) ...[
+                        _SelectionSummaryBar(summary: summary),
+                        const SizedBox(height: 12),
+                      ],
+                      FilledButton.icon(
+                        icon: const Icon(Icons.arrow_forward),
+                        label: const Text('Continua'),
+                        onPressed: flow.hasSelection
+                            ? () => context.push(Routes.bookingSchedule)
+                            : null,
+                      ),
+                    ],
                   ),
                 ),
               ),
@@ -175,6 +212,39 @@ class BookingServicesScreen extends ConsumerWidget {
   }
 }
 
+/// Running total of the selection, read from the shared summary provider so
+/// the customer always knows what — and how much — they've chosen.
+class _SelectionSummaryBar extends StatelessWidget {
+  const _SelectionSummaryBar({required this.summary});
+
+  final BookingSelectionSummary summary;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final services = summary.count == 1 ? 'servizio' : 'servizi';
+
+    return Row(
+      children: [
+        Expanded(
+          child: Text(
+            '${summary.count} $services · '
+            '${Formats.duration(summary.totalDurationMinutes)}',
+            style: theme.textTheme.bodyMedium
+                ?.copyWith(color: scheme.onSurfaceVariant),
+          ),
+        ),
+        Text(
+          Formats.price(summary.totalPriceCents, summary.currency),
+          style: theme.textTheme.titleMedium
+              ?.copyWith(fontWeight: FontWeight.w700),
+        ),
+      ],
+    );
+  }
+}
+
 class _EmptyState extends StatelessWidget {
   const _EmptyState({required this.message});
 
@@ -182,10 +252,27 @@ class _EmptyState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(32),
-        child: Text(message, textAlign: TextAlign.center),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.event_note_outlined,
+              size: 44,
+              color: theme.colorScheme.primary.withValues(alpha: 0.5),
+            ),
+            const SizedBox(height: 14),
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: theme.textTheme.bodyMedium,
+            ),
+          ],
+        ),
       ),
     );
   }

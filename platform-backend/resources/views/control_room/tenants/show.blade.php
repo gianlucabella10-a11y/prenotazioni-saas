@@ -46,6 +46,12 @@
                     @csrf <button class="btn small" type="submit">Riattiva</button>
                 </form>
             @endif
+            @if ($tenant->status->value !== 'terminated')
+                <form method="post" action="{{ route('control.tenants.terminate', $tenant->uuid) }}"
+                      onsubmit="return confirm('Archiviare definitivamente questo cliente? Non è reversibile.')">
+                    @csrf <button class="btn small danger" type="submit">Archivia</button>
+                </form>
+            @endif
         </div>
     </div>
 

@@ -10,6 +10,7 @@ use App\Modules\AppFactory\Application\AppPreview;
 use App\Modules\AppFactory\Application\BuildFleet;
 use App\Modules\AppFactory\Application\BuildService;
 use App\Modules\AppFactory\Application\PrepareApp;
+use App\Modules\AppFactory\Application\QueueFleetRebuild;
 use App\Modules\AppFactory\Domain\TemplateRegistry;
 use App\Modules\AppFactory\Infrastructure\Models\AppBuild;
 use App\Modules\AppFactory\Infrastructure\Models\AppProject;
@@ -61,6 +62,36 @@ final class AppProjectController extends Controller
     public function fleet(BuildFleet $fleet): View
     {
         return view('control_room.apps.fleet', $fleet->summary());
+    }
+
+    /**
+     * Operazione di massa (FLEET_OPERATIONS.md): accoda una build per ogni
+     * app stale, senza aprire un terminale/CI — stessa selezione già usata
+     * dalla CI matrix (`app:build-matrix`), stesso accodamento di una build
+     * singola (`BuildService`), solo ripetuto a lotto.
+     */
+    public function rebuildFleet(Request $request, QueueFleetRebuild $rebuild, AuditLogger $audit): RedirectResponse
+    {
+        $data = $request->validate([
+            'platform' => ['required', 'in:android,ios'],
+            'limit' => ['nullable', 'integer', 'min:1', 'max:100'],
+        ]);
+
+        $result = $rebuild->execute(
+            $data['platform'],
+            isset($data['limit']) ? (int) $data['limit'] : null,
+            $request->user('admin')->id,
+        );
+
+        $audit->log('control_room.fleet_rebuild_queued', $request->user('admin')->id, $result);
+
+        $message = "{$result['queued']} build accodate.";
+
+        if ($result['skipped'] > 0) {
+            $message .= " {$result['skipped']} app saltate (manifest non ancora generato).";
+        }
+
+        return back()->with('status', $message);
     }
 
     public function show(string $uuid, AppPreview $preview): View

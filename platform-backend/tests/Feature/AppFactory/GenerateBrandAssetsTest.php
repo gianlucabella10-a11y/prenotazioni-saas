@@ -57,15 +57,17 @@ final class GenerateBrandAssetsTest extends TestCase
 
         $generated = app(GenerateBrandAssets::class)->execute($env['tenant']->id);
 
-        self::assertCount(14, $generated); // 9 icone + 3 splash + 2 store
+        self::assertCount(16, $generated); // 9 icone + 3 splash + 2 store + 2 favicon
         $derived = $this->bypassTenancy(fn () => BrandAsset::query()->where('brand_profile_id', $brandId)->whereNotNull('variant')->get());
-        self::assertCount(14, $derived);
+        self::assertCount(16, $derived);
         self::assertTrue($derived->every(fn (BrandAsset $a): bool => Storage::disk('public')->exists($a->disk_path)));
         self::assertTrue($derived->every(fn (BrandAsset $a): bool => (bool) $a->is_current));
         self::assertSame(1, $derived->max('version'));
         // Store assets generati (feature graphic + screenshot placeholder).
         self::assertSame(1, $derived->where('kind', 'feature_graphic')->count());
         self::assertSame(1, $derived->where('kind', 'screenshot')->count());
+        // Favicon per web/PWA (Fase 6).
+        self::assertSame(2, $derived->where('kind', 'favicon')->count());
     }
 
     public function test_regeneration_keeps_history_and_bumps_version(): void
@@ -79,8 +81,8 @@ final class GenerateBrandAssetsTest extends TestCase
         app(GenerateBrandAssets::class)->execute($env['tenant']->id);
 
         $derived = $this->bypassTenancy(fn () => BrandAsset::query()->where('brand_profile_id', $brandId)->whereNotNull('variant')->get());
-        self::assertCount(28, $derived); // storico mantenuto (14 v1 + 14 v2), MAI cancellato
-        self::assertSame(14, $derived->where('is_current', true)->count()); // solo v2 corrente
+        self::assertCount(32, $derived); // storico mantenuto (16 v1 + 16 v2), MAI cancellato
+        self::assertSame(16, $derived->where('is_current', true)->count()); // solo v2 corrente
         self::assertSame(2, $derived->max('version'));
         self::assertTrue($derived->where('version', 1)->every(fn (BrandAsset $a): bool => ! $a->is_current));
     }

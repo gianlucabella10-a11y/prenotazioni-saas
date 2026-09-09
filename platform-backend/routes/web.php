@@ -4,7 +4,11 @@ declare(strict_types=1);
 
 use App\Modules\AppFactory\Http\Controllers\AppProjectController;
 use App\Modules\AppFactory\Http\Controllers\BetaDownloadController;
+use App\Modules\ControlRoom\Http\Controllers\AuditLogController;
+use App\Modules\ControlRoom\Http\Controllers\BackupController;
 use App\Modules\ControlRoom\Http\Controllers\ControlRoomAuthController;
+use App\Modules\ControlRoom\Http\Controllers\HomeController as ControlRoomHomeController;
+use App\Modules\ControlRoom\Http\Controllers\LogViewerController;
 use App\Modules\ControlRoom\Http\Controllers\TenantBrandController;
 use App\Modules\ControlRoom\Http\Controllers\TenantInviteController;
 use App\Modules\ControlRoom\Http\Controllers\TenantsController;
@@ -77,12 +81,14 @@ Route::prefix('dashboard')->group(function (): void {
 
             Route::get('/disponibilita', [AvailabilityController::class, 'index'])->name('dashboard.availability.index');
             Route::put('/disponibilita/orari-sede', [AvailabilityController::class, 'updateLocationHours'])->name('dashboard.availability.hours');
+            Route::put('/disponibilita/regole', [AvailabilityController::class, 'updateBookingPolicy'])->name('dashboard.availability.policy');
             Route::post('/disponibilita/chiusure', [AvailabilityController::class, 'storeException'])->name('dashboard.availability.exceptions.store');
             Route::delete('/disponibilita/chiusure/{uuid}', [AvailabilityController::class, 'destroyException'])->name('dashboard.availability.exceptions.destroy');
 
             Route::get('/personalizzazione', [BrandingController::class, 'index'])->name('dashboard.branding.index');
             Route::put('/personalizzazione/brand', [BrandingController::class, 'updateBrand'])->name('dashboard.branding.brand');
             Route::put('/personalizzazione/contatti', [BrandingController::class, 'updateContacts'])->name('dashboard.branding.contacts');
+            Route::post('/personalizzazione/logo', [BrandingController::class, 'uploadLogo'])->name('dashboard.branding.logo');
         });
     });
 });
@@ -111,7 +117,7 @@ Route::prefix('control-room')->group(function (): void {
     Route::middleware(['auth:admin', 'control.admin'])->group(function (): void {
         Route::post('/logout', [ControlRoomAuthController::class, 'logout'])->name('control.logout');
 
-        Route::get('/', [TenantsController::class, 'index'])->name('control.home');
+        Route::get('/', [ControlRoomHomeController::class, 'index'])->name('control.home');
         Route::get('/clienti', [TenantsController::class, 'index'])->name('control.tenants.index');
         Route::get('/clienti/nuovo', [TenantsController::class, 'create'])->name('control.tenants.create');
         Route::post('/clienti', [TenantsController::class, 'store'])->name('control.tenants.store');
@@ -119,6 +125,7 @@ Route::prefix('control-room')->group(function (): void {
         Route::post('/clienti/{uuid}/sospendi', [TenantsController::class, 'suspend'])->name('control.tenants.suspend');
         Route::post('/clienti/{uuid}/riattiva', [TenantsController::class, 'reactivate'])->name('control.tenants.reactivate');
         Route::post('/clienti/{uuid}/attiva', [TenantsController::class, 'activate'])->name('control.tenants.activate');
+        Route::post('/clienti/{uuid}/termina', [TenantsController::class, 'terminate'])->name('control.tenants.terminate');
 
         Route::post('/clienti/{uuid}/invito/rigenera', [TenantInviteController::class, 'regenerate'])->name('control.tenants.invite.regenerate');
         Route::post('/clienti/{uuid}/invito/revoca', [TenantInviteController::class, 'revoke'])->name('control.tenants.invite.revoke');
@@ -130,6 +137,7 @@ Route::prefix('control-room')->group(function (): void {
         Route::get('/apps', [AppProjectController::class, 'index'])->name('control.apps.index');
         // Osservabilità flotta (FASE 3): prima di /apps/{uuid} per non essere oscurata.
         Route::get('/apps/flotta', [AppProjectController::class, 'fleet'])->name('control.apps.fleet');
+        Route::post('/apps/flotta/ricostruisci', [AppProjectController::class, 'rebuildFleet'])->name('control.apps.fleet.rebuild');
         Route::get('/apps/{uuid}', [AppProjectController::class, 'show'])->name('control.apps.show');
         Route::put('/apps/{uuid}/template', [AppProjectController::class, 'updateTemplate'])->name('control.apps.template');
         Route::post('/apps/{uuid}/genera', [AppProjectController::class, 'generate'])->name('control.apps.generate');
@@ -143,6 +151,13 @@ Route::prefix('control-room')->group(function (): void {
         Route::post('/apps/{uuid}/rollback', [AppProjectController::class, 'rollbackAssets'])->name('control.apps.rollback');
         Route::get('/apps/{uuid}/download/{build}', [AppProjectController::class, 'download'])->name('control.apps.download');
         Route::get('/apps/{uuid}/package', [AppProjectController::class, 'downloadPackage'])->name('control.apps.package');
+
+        Route::get('/audit', [AuditLogController::class, 'index'])->name('control.audit.index');
+
+        Route::get('/backup', [BackupController::class, 'index'])->name('control.backup.index');
+        Route::post('/backup', [BackupController::class, 'store'])->name('control.backup.store');
+
+        Route::get('/logs', [LogViewerController::class, 'index'])->name('control.logs.index');
     });
 });
 

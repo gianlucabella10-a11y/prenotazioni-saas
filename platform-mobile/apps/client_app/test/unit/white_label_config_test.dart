@@ -48,6 +48,62 @@ void main() {
       expect(config.theme.typographyScale, 1.1);
     });
 
+    test('parses customer experience content with defaults', () {
+      final config = WhiteLabelConfig.fromJson({
+        'tenant_status': 'active',
+        'app_name': 'X',
+        'content': {
+          'primary_cta_label': 'Prenota subito',
+          'welcome_message': 'Ciao!',
+          'hero_image_url': 'https://cdn/hero.jpg',
+        },
+      });
+
+      expect(config.content.primaryCtaLabel, 'Prenota subito');
+      expect(config.content.welcomeMessage, 'Ciao!');
+      expect(config.content.heroImageUrl, 'https://cdn/hero.jpg');
+      // Non sovrascritto → default.
+      expect(config.content.homeTitle, 'Il tuo prossimo appuntamento');
+
+      final bare = WhiteLabelConfig.fromJson({
+        'tenant_status': 'active',
+        'app_name': 'X',
+      });
+      expect(bare.content.primaryCtaLabel, 'Prenota ora');
+      expect(bare.content.emptyAppointments, 'Nessun appuntamento in programma.');
+      expect(bare.content.welcomeMessage, isNull);
+    });
+
+    test('parses business identity fields (tiktok, cookie, vat)', () {
+      final config = WhiteLabelConfig.fromJson({
+        'tenant_status': 'active',
+        'app_name': 'Salone Verdi',
+        'social': {
+          'instagram_url': 'https://instagram.com/demo',
+          'tiktok_url': 'https://tiktok.com/@demo',
+        },
+        'legal': {
+          'privacy_policy_url': 'https://demo.it/privacy',
+          'cookie_url': 'https://demo.it/cookie',
+        },
+        'business': {'vat_number': 'IT01234567890'},
+      });
+
+      expect(config.social.tiktokUrl, 'https://tiktok.com/@demo');
+      expect(config.social.hasAny, isTrue);
+      expect(config.legal.cookieUrl, 'https://demo.it/cookie');
+      expect(config.vatNumber, 'IT01234567890');
+
+      // Assenti → null, la UI nasconde le voci vuote.
+      final bare = WhiteLabelConfig.fromJson({
+        'tenant_status': 'active',
+        'app_name': 'X',
+      });
+      expect(bare.social.tiktokUrl, isNull);
+      expect(bare.legal.cookieUrl, isNull);
+      expect(bare.vatNumber, isNull);
+    });
+
     test('parses the App Factory skin (template/layout/font) with defaults', () {
       final withSkin = WhiteLabelConfig.fromJson({
         'tenant_status': 'active',

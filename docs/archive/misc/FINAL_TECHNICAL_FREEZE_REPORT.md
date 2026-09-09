@@ -1,5 +1,7 @@
 # FINAL TECHNICAL FREEZE REPORT
 
+> ⚠️ **ARCHIVIATO — duplicato letterale.** Questo documento dichiara nel proprio corpo di essere identico a `FINAL_PRODUCT_READINESS_AUDIT.md` (stessa cartella). Conservato per completezza della cronologia, non consultare entrambi come se fossero fonti indipendenti.
+>
 > Audit di produzione **read-only** — nessun file del prodotto è stato modificato.
 > Data: 2026-06-14 · Commit: `6f6ca0c` (`origin/main` allineato).
 > Domanda a cui rispondiamo: *"Posso congelare la parte tecnica e dedicarmi solo a UI/UX/branding?"*

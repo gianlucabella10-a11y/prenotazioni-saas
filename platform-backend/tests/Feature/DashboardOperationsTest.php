@@ -4,14 +4,18 @@ declare(strict_types=1);
 
 namespace Tests\Feature;
 
+use App\Modules\Branding\Infrastructure\Models\BrandAsset;
 use App\Modules\Branding\Infrastructure\Models\BrandProfile;
+use App\Modules\Catalog\Infrastructure\Models\Location;
 use App\Modules\Catalog\Infrastructure\Models\Service;
 use App\Modules\Scheduling\Domain\AppointmentStatus;
 use App\Modules\Scheduling\Infrastructure\Models\Appointment;
 use App\Modules\Scheduling\Infrastructure\Models\ScheduleException;
 use App\Modules\Staff\Infrastructure\Models\StaffMember;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Queue;
+use Illuminate\Support\Facades\Storage;
 use Tests\Concerns\InteractsWithTenancy;
 use Tests\TestCase;
 
@@ -27,6 +31,63 @@ final class DashboardOperationsTest extends TestCase
     private function owner(array $env)
     {
         return $this->createTenantAdmin($env['tenant']);
+    }
+
+    public function test_booking_policy_update_persists_and_bumps_config(): void
+    {
+        $env = $this->provisionBookableTenant();
+        $owner = $this->owner($env);
+
+        $this->bindTenant($env['tenant']);
+        $before = BrandProfile::query()->firstOrFail()->config_version;
+
+        $this->actingAs($owner, 'web')->put('/dashboard/disponibilita/regole', [
+            'booking_window_days' => 30,
+            'min_notice_minutes' => 120,
+            'slot_granularity_minutes' => 20,
+            'cancellation_cutoff_minutes' => 720,
+            'max_active_bookings_per_customer' => 3,
+        ])->assertRedirect();
+
+        $location = Location::query()->orderBy('id')->firstOrFail();
+        self::assertSame(30, $location->booking_window_days);
+        self::assertSame(20, $location->slot_granularity_minutes);
+        self::assertSame(120, $location->min_notice_minutes);
+        self::assertSame(3, (int) ($location->settings['max_active_bookings_per_customer'] ?? 0));
+
+        // booking_window viaggia nel /app/config → config_version bumpato.
+        self::assertSame($before + 1, BrandProfile::query()->firstOrFail()->config_version);
+    }
+
+    public function test_dashboard_logo_upload_generates_assets(): void
+    {
+        Storage::fake('public');
+
+        $env = $this->provisionBookableTenant();
+        $owner = $this->owner($env);
+
+        $this->bindTenant($env['tenant']);
+        $before = BrandProfile::query()->firstOrFail()->config_version;
+
+        $this->actingAs($owner, 'web')->post('/dashboard/personalizzazione/logo', [
+            'logo' => UploadedFile::fake()->image('logo.png', 512, 512),
+        ])->assertRedirect();
+
+        $brand = BrandProfile::query()->firstOrFail();
+
+        // config_version bumpato (logo_url viaggia nel config runtime).
+        self::assertSame($before + 1, $brand->config_version);
+        // Logo salvato + derivati (icone/splash/favicon) generati (Fase 6/8).
+        self::assertTrue(
+            BrandAsset::query()
+                ->where('brand_profile_id', $brand->id)
+                ->where('kind', BrandAsset::KIND_LOGO)
+                ->exists(),
+        );
+        self::assertGreaterThan(0, BrandAsset::query()
+            ->where('brand_profile_id', $brand->id)
+            ->whereNotNull('variant')
+            ->count());
     }
 
     public function test_service_crud_with_validation(): void

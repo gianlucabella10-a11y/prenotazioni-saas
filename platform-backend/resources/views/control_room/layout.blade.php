@@ -20,6 +20,8 @@
     <aside class="sidebar">
         <div class="brand">Control Room <span class="cr-tag">INTERNO</span></div>
         <nav>
+            <a href="{{ route('control.home') }}"
+               class="{{ request()->routeIs('control.home') ? 'active' : '' }}">Cruscotto</a>
             <a href="{{ route('control.tenants.index') }}"
                class="{{ request()->routeIs('control.tenants.index') || request()->routeIs('control.tenants.show') ? 'active' : '' }}">Clienti</a>
             <a href="{{ route('control.tenants.create') }}"
@@ -28,6 +30,12 @@
                class="{{ request()->routeIs('control.apps.index') || request()->routeIs('control.apps.show') ? 'active' : '' }}">App</a>
             <a href="{{ route('control.apps.fleet') }}"
                class="{{ request()->routeIs('control.apps.fleet') ? 'active' : '' }}">Flotta</a>
+            <a href="{{ route('control.audit.index') }}"
+               class="{{ request()->routeIs('control.audit.index') ? 'active' : '' }}">Audit</a>
+            <a href="{{ route('control.backup.index') }}"
+               class="{{ request()->routeIs('control.backup.*') ? 'active' : '' }}">Backup</a>
+            <a href="{{ route('control.logs.index') }}"
+               class="{{ request()->routeIs('control.logs.index') ? 'active' : '' }}">Log</a>
         </nav>
         <div class="foot">
             {{ auth('admin')->user()?->email }}<br>

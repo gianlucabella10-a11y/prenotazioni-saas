@@ -65,10 +65,33 @@
 </div>
 
 <div class="card">
-    <h3 style="margin-top:0">Costruire la flotta</h3>
-    <p class="muted">La build a lotti è lanciata dalla CI (workflow <code>app-factory-batch</code>), che legge la matrice dal backend:</p>
-    <pre style="overflow:auto"><code>php artisan app:build-matrix --platform=android --stale-only --limit=10</code></pre>
-    <p class="muted">Canary: parti con <code>--limit=1</code>, verifica, poi rilancia senza limite. Vedi <code>APP_FACTORY_PHASE3_READINESS.md</code>.</p>
+    <h3 style="margin-top:0">Ricostruisci la flotta</h3>
+    <p class="muted" style="margin-top:0">
+        Accoda una build per ogni app <strong>stale</strong> ({{ $stale }} oggi) — nessun terminale richiesto.
+        Le app senza manifest ancora generato vengono saltate e segnalate, non bloccano le altre.
+    </p>
+    <form method="post" action="{{ route('control.apps.fleet.rebuild') }}"
+          onsubmit="return confirm('Accodare la build per le app stale? L\'operazione può richiedere tempo se ce ne sono molte.')">
+        @csrf
+        <div class="row" style="align-items:end">
+            <div>
+                <label for="platform">Piattaforma</label>
+                <select id="platform" name="platform">
+                    <option value="android">Android</option>
+                    <option value="ios">iOS</option>
+                </select>
+            </div>
+            <div>
+                <label for="limit">Limite (canary, opzionale)</label>
+                <input id="limit" type="number" name="limit" min="1" max="100" placeholder="es. 1 per un canary">
+            </div>
+            <div><button class="btn" type="submit" @disabled($stale === 0)>Ricostruisci flotta stale</button></div>
+        </div>
+    </form>
+    <p class="muted mt" style="font-size:13px">
+        In alternativa, per lotti molto grandi resta disponibile la CI (workflow <code>app-factory-batch</code>,
+        <code>php artisan app:build-matrix --stale-only</code>) — vedi <code>docs/AppFactory/</code>.
+    </p>
 </div>
 
 @endsection

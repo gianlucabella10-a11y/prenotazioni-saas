@@ -1,6 +1,8 @@
 # APP_PROVISIONING_RUNBOOK
 
 > Procedura operativa per portare un nuovo esercente da zero a APK installato. Solo Control Room, **nessun intervento sul codice**. Esempio: «Giuffrida Barber».
+>
+> Consolida anche il contenuto di `PRODUCTION_READY_RUNBOOK.md` (stesso scopo operativo, versione precedente — ora in `docs/archive/app-factory/`).
 
 ## Prerequisiti
 - Accesso Control Room (super-admin + MFA): `/control-room`.

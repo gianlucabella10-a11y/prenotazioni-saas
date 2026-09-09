@@ -57,6 +57,20 @@ class BusinessInfoScreen extends ConsumerWidget {
           if (config.locations.isNotEmpty)
             _LocationsCard(locations: config.locations, onLaunch: _launch),
           _StaffSection(),
+          if (config.vatNumber != null && config.vatNumber!.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: 16, bottom: 8),
+              child: Text(
+                'P. IVA ${config.vatNumber}',
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: Theme.of(context)
+                          .colorScheme
+                          .onSurface
+                          .withValues(alpha: 0.6),
+                    ),
+              ),
+            ),
         ],
       ),
     );
@@ -195,6 +209,12 @@ class _ContactsCard extends StatelessWidget {
                         icon: Icons.facebook_outlined,
                         label: 'Facebook',
                         onTap: () => onLaunch(social.facebookUrl!),
+                      ),
+                    if (social.tiktokUrl != null)
+                      _SocialButton(
+                        icon: Icons.music_note_outlined,
+                        label: 'TikTok',
+                        onTap: () => onLaunch(social.tiktokUrl!),
                       ),
                     if (social.mapsUrl != null)
                       _SocialButton(

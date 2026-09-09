@@ -118,6 +118,19 @@ final class ControlRoomTenantManagementTest extends TestCase
         self::assertSame('active', $this->tenantStatus($tenant));
     }
 
+    public function test_terminate_archives_tenant_and_is_final(): void
+    {
+        $this->actingSuperAdmin();
+        $tenant = $this->bypassTenancy(fn (): Tenant => Tenant::factory()->create(['status' => 'active']));
+
+        $this->post("/control-room/clienti/{$tenant->uuid}/termina")->assertRedirect();
+        self::assertSame('terminated', $this->tenantStatus($tenant));
+
+        // Terminated è uno stato finale: nessuna transizione successiva è ammessa.
+        $this->post("/control-room/clienti/{$tenant->uuid}/riattiva")->assertSessionHas('error');
+        self::assertSame('terminated', $this->tenantStatus($tenant));
+    }
+
     public function test_invalid_transition_is_reported_and_state_unchanged(): void
     {
         $this->actingSuperAdmin();

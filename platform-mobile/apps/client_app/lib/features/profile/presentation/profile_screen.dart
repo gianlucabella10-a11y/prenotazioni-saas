@@ -181,6 +181,7 @@ class ProfileScreen extends ConsumerWidget {
             if (legal != null &&
                 (legal.privacyPolicyUrl != null ||
                     legal.termsUrl != null ||
+                    legal.cookieUrl != null ||
                     legal.supportUrl != null))
               Card(
                 child: Column(
@@ -196,6 +197,12 @@ class ProfileScreen extends ConsumerWidget {
                         icon: Icons.description_outlined,
                         label: 'Termini e condizioni',
                         url: legal.termsUrl!,
+                      ),
+                    if (legal.cookieUrl != null)
+                      _LinkTile(
+                        icon: Icons.cookie_outlined,
+                        label: 'Cookie policy',
+                        url: legal.cookieUrl!,
                       ),
                     if (legal.supportUrl != null)
                       _LinkTile(

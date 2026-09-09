@@ -20,6 +20,15 @@ abstract final class Formats {
   /// "12:00" wall-clock time.
   static String time(DateTime local) => DateFormat.Hm().format(local);
 
+  /// "12:00 – 12:30" — the time span shown on the confirmation recap.
+  static String timeRange(DateTime startLocal, DateTime endLocal) =>
+      '${time(startLocal)} – ${time(endLocal)}';
+
+  /// "venerdì 26 giugno" — the day headline on confirmations (no year: the
+  /// recap already sits in the near future, the year is noise here).
+  static String weekdayDayMonth(DateTime local) =>
+      DateFormat('EEEE d MMMM', 'it_IT').format(local);
+
   /// "venerdì 26 giugno 2026, 12:00" for confirmations.
   static String fullDateTime(DateTime local) =>
       DateFormat("EEEE d MMMM y, HH:mm", 'it_IT').format(local);

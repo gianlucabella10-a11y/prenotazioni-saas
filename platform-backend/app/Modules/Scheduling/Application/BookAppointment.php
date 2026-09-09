@@ -68,6 +68,7 @@ final readonly class BookAppointment
 
         $startsAt = $this->parseStart($startsAtIso);
         $this->assertWithinBookingPolicy($location, $startsAt);
+        $this->assertWithinCustomerQuota($customer, $location);
 
         $tenant = $this->currentTenant->get();
         $status = $tenant->requiresBookingApproval() ? AppointmentStatus::Requested : AppointmentStatus::Confirmed;
@@ -179,6 +180,37 @@ final readonly class BookAppointment
 
         if ($startsAt > $now->modify("+{$location->booking_window_days} days")) {
             throw ApiException::unprocessable('beyond_booking_window', 'This date is not yet open for booking.');
+        }
+    }
+
+    /**
+     * Booking Identity (Fase 4): tetto opzionale di prenotazioni attive per
+     * cliente (`settings.max_active_bookings_per_customer`, 0/assente =
+     * illimitato). Conta gli appuntamenti futuri ancora richiesti/confermati.
+     */
+    private function assertWithinCustomerQuota(Customer $customer, Location $location): void
+    {
+        $max = (int) ($location->settings['max_active_bookings_per_customer'] ?? 0);
+
+        if ($max <= 0) {
+            return;
+        }
+
+        $active = Appointment::query()
+            ->where('customer_id', $customer->id)
+            ->whereIn('status', [
+                AppointmentStatus::Requested->value,
+                AppointmentStatus::Confirmed->value,
+            ])
+            ->where('starts_at', '>=', now())
+            ->count();
+
+        if ($active >= $max) {
+            throw ApiException::unprocessable(
+                'booking_limit_reached',
+                'You have reached the maximum number of active bookings.',
+                ['max' => $max],
+            );
         }
     }
 

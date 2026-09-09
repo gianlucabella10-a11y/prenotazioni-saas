@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -89,6 +90,7 @@ class _BookingScheduleScreenState
   Widget build(BuildContext context) {
     final flow = ref.watch(bookingFlowProvider);
     final staffAsync = ref.watch(staffProvider);
+    final summary = ref.watch(bookingSelectionSummaryProvider);
     final theme = Theme.of(context);
 
     final day = flow.selectedDay ?? Formats.dayKey(DateTime.now());
@@ -98,7 +100,13 @@ class _BookingScheduleScreenState
     );
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Scegli data e orario')),
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        foregroundColor: theme.colorScheme.onSurface,
+        title: const Text('Quando?'),
+      ),
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -140,9 +148,12 @@ class _BookingScheduleScreenState
                     return ChoiceChip(
                       label: Text(member.displayName),
                       selected: flow.staffUuid == member.uuid,
-                      onSelected: (_) => ref
-                          .read(bookingFlowProvider.notifier)
-                          .selectStaff(member.uuid),
+                      onSelected: (_) {
+                        HapticFeedback.selectionClick();
+                        ref
+                            .read(bookingFlowProvider.notifier)
+                            .selectStaff(member.uuid);
+                      },
                     );
                   },
                 );
@@ -228,29 +239,48 @@ class _BookingScheduleScreenState
               ),
             ),
           ),
-          SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: FilledButton(
-                onPressed: flow.readyToSubmit ? _submit : null,
-                child: flow.submitting
-                    ? const SizedBox(
-                        height: 20,
-                        width: 20,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : Text(
-                        flow.selectedSlot == null
-                            ? 'Scegli un orario'
-                            : 'Conferma per le '
-                                '${Formats.time(flow.selectedSlot!.startsAtLocal)}',
-                      ),
+          DecoratedBox(
+            decoration: BoxDecoration(
+              border: Border(
+                top: BorderSide(color: theme.colorScheme.outlineVariant),
+              ),
+            ),
+            child: SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: FilledButton(
+                  onPressed: flow.readyToSubmit ? _submit : null,
+                  child: flow.submitting
+                      ? const SizedBox(
+                          height: 20,
+                          width: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : Text(_confirmLabel(flow, summary)),
+                ),
               ),
             ),
           ),
         ],
       ),
     );
+  }
+
+  /// The CTA doubles as the recap — service time and total — so the customer
+  /// never confirms "blind". The total is the single shared computation.
+  String _confirmLabel(BookingFlowState flow, BookingSelectionSummary summary) {
+    final slot = flow.selectedSlot;
+    if (slot == null) {
+      return 'Scegli un orario';
+    }
+
+    final time = Formats.time(slot.startsAtLocal);
+    if (summary.isEmpty) {
+      return 'Conferma · $time';
+    }
+
+    return 'Conferma · $time · '
+        '${Formats.price(summary.totalPriceCents, summary.currency)}';
   }
 }
 
@@ -286,38 +316,68 @@ class _DayStrip extends StatelessWidget {
           final key = Formats.dayKey(date);
           final isSelected = key == selectedDay;
           final scheme = Theme.of(context).colorScheme;
+          final radius = BorderRadius.circular(12);
 
-          return GestureDetector(
-            onTap: () => onSelect(key),
-            child: Container(
+          final label = switch (index) {
+            0 => 'Oggi',
+            1 => 'Domani',
+            _ => Formats.shortDate(date).split(' ').first.toUpperCase(),
+          };
+          final onColor = isSelected ? scheme.onSecondary : scheme.onSurface;
+
+          return Semantics(
+            button: true,
+            selected: isSelected,
+            label: switch (index) {
+              0 => 'Oggi, ${Formats.weekdayDayMonth(date)}',
+              1 => 'Domani, ${Formats.weekdayDayMonth(date)}',
+              _ => Formats.weekdayDayMonth(date),
+            },
+            child: SizedBox(
               width: 64,
-              decoration: BoxDecoration(
+              child: Material(
                 color: isSelected ? scheme.secondary : scheme.surface,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: scheme.outlineVariant),
-              ),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(
-                    Formats.shortDate(date).split(' ').first,
-                    style: TextStyle(
-                      color: isSelected
-                          ? scheme.onSecondary
-                          : scheme.onSurface,
+                shape: RoundedRectangleBorder(
+                  borderRadius: radius,
+                  // Filled when selected, outlined otherwise — a fill/shape
+                  // cue that doesn't rely on colour alone.
+                  side: isSelected
+                      ? BorderSide.none
+                      : BorderSide(color: scheme.outlineVariant),
+                ),
+                child: InkWell(
+                  borderRadius: radius,
+                  onTap: () {
+                    HapticFeedback.selectionClick();
+                    onSelect(key);
+                  },
+                  child: ExcludeSemantics(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        FittedBox(
+                          child: Text(
+                            label,
+                            style: TextStyle(
+                              color: onColor,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          '${date.day}',
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                            color: onColor,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                  Text(
-                    '${date.day}',
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                      color: isSelected
-                          ? scheme.onSecondary
-                          : scheme.onSurface,
-                    ),
-                  ),
-                ],
+                ),
               ),
             ),
           );
@@ -348,7 +408,13 @@ class _SlotWrap extends StatelessWidget {
           ChoiceChip(
             label: Text(Formats.time(slot.startsAtLocal)),
             selected: selected?.startsAtUtc == slot.startsAtUtc,
-            onSelected: (_) => onSelect(slot),
+            // Full 48px tap target even with the compact chip look.
+            materialTapTargetSize: MaterialTapTargetSize.padded,
+            labelPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            onSelected: (_) {
+              HapticFeedback.selectionClick();
+              onSelect(slot);
+            },
           ),
       ],
     );

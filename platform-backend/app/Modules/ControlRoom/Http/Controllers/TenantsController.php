@@ -169,6 +169,11 @@ final class TenantsController extends Controller
         return $this->transition($request, $uuid, TenantStatus::Active, 'tenant.activated', 'Cliente attivato.');
     }
 
+    public function terminate(Request $request, string $uuid): RedirectResponse
+    {
+        return $this->transition($request, $uuid, TenantStatus::Terminated, 'tenant.terminated', 'Cliente archiviato.');
+    }
+
     private function transition(Request $request, string $uuid, TenantStatus $target, string $action, string $message): RedirectResponse
     {
         try {

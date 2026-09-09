@@ -1,0 +1,26 @@
+# CONTROL_ROOM_AUTOMATION_PLAN — Cosa eliminare, e come
+
+> Per ognuna delle operazioni suggerite: implementabile / non implementabile / pericolosa / utile. Le tre marcate "✅ Implementata in questa sessione" sono state realmente scritte, testate (212/212 test verdi) e verificate manualmente (`php artisan platform:backup` eseguito con successo contro il database reale).
+
+| Operazione | Verdetto | Motivazione | Esito |
+|---|---|---|---|
+| **Build** (trigger, stato, log) | Utile | — | Già esistente da prima di questa sessione |
+| **Generate** | Utile | — | Già esistente da prima di questa sessione |
+| **Backup** | Implementabile | Script già esistente e funzionante da terminale — solo da esporre come azione, nessuna logica nuova da inventare | ✅ **Implementata**: `CreatePlatformBackup` (Application), pulsante "Backup ora" in `/control-room/backup`, elenco backup esistenti, stesso comando disponibile anche da CLI (`platform:backup`) |
+| **Logs** (consultazione applicativa) | Implementabile, ma non pericolosa né urgente quanto le altre tre | Richiede decisioni di UX (quanti log, quale retention, come non esporre dati sensibili) che vanno oltre "esponi un'azione già esistente" — le altre 3 priorità (backup, terminazione, audit) erano più urgenti perché bloccavano operazioni, non solo diagnosi | ⏸️ Non implementata in questa sessione — resta in `AUTOMATION_CATALOG.md`/roadmap |
+| **Restart Queue** | Pericolosa se esposta come pulsante diretto | Riavviare un worker da una richiesta HTTP richiede privilegi di sistema (systemd/processo) che l'applicazione Laravel non dovrebbe avere — un bug in quel pulsante potrebbe interrompere build in corso per tutti i tenant | ❌ Non implementabile in sicurezza senza un demone di controllo dedicato — resta terminale |
+| **Health Check** (build machine, toolchain) | Utile | Richiede una nuova sonda (verificare Flutter/Android SDK) — funzionalità nuova, non solo esposizione di logica esistente | ⏸️ Non implementata — `CONTROL_ROOM_ROADMAP.md` la classifica 🟣 UTILE, non 🔵 ESSENZIALE |
+| **Download APK** | Utile | — | Già esistente da prima di questa sessione |
+| **Versioni** | Utile | — | Già esistente da prima di questa sessione (gestione manuale, gap di collegamento con la build reale già documentato in `TECHNICAL_DEBT.md` #2) |
+| **Storage** (pulizia, spazio disco) | Non implementabile in questa sessione | Richiede decisioni di retention (quali file sono sicuri da rimuovere, quanti backup/build storici tenere) — non è "esporre un'azione esistente", è definire una policy nuova | ⏸️ Resta in `CONTROL_ROOM_ROADMAP.md` come 🟣 UTILE |
+| **Cache** | Non implementabile come azione Control Room | La cache applicativa (`config:cache`, `route:cache`) è un dettaglio di deploy, non un'operazione quotidiana del Founder — esporla non elimina un'operazione reale, ne aggiunge una superflua | ❌ Non implementabile con beneficio reale |
+| **Analytics** | Non implementabile | `AnalyticsService` è codice morto — non c'è nulla da esporre in Control Room finché non viene collegato a un provider (decisione di prodotto, non di operatività) | ❌ Bloccata a monte, vedi `TECHNICAL_DEBT.md` #3 |
+| **Feedback** (gestione, non solo lettura) | Utile | Già in sola lettura da Control Room — la gestione (rispondere, chiudere) è una funzionalità nuova, non un'automazione operativa | ⏸️ Fuori scope per questa sessione (vincolo: "non aggiungere funzionalità commerciali/nuove") |
+| **Release** | Utile, ma pericolosa se automatizzata senza gate | Pubblicare su uno store da un pulsante diretto rimuoverebbe l'unico controllo umano prima che qualcosa raggiunga utenti reali | ❌ Non implementabile in sicurezza senza un gate — resta CI-driven |
+| **Rollback** (build/APK) | Utile | Richiede una nuova azione che ripristini un artefatto precedente come "corrente" — funzionalità nuova (oggi esiste solo rollback degli asset brand, non delle build), non un'esposizione di logica già scritta | ⏸️ Resta in `CONTROL_ROOM_ROADMAP.md` come 🟣 UTILE, non implementata |
+| **Terminazione/archiviazione cliente** | Implementabile, bassa rischiosità | `ChangeTenantStatus::execute()` già supportava la transizione a `Terminated` nella macchina a stati — mancava solo il pulsante | ✅ **Implementata**: azione "Archivia" nella scheda cliente, transizione irreversibile con conferma esplicita, audit-loggata (`tenant.terminated`) |
+| **Audit log (vista)** | Implementabile, nessun rischio (sola lettura) | I dati esistevano già in `audit_logs`, scritti da ~20 punti del codice — mancava solo una schermata di lettura | ✅ **Implementata**: pagina `/control-room/audit`, paginata, filtrabile per azione |
+
+## Le 3 scelte per l'implementazione reale (Fase 3)
+
+Su ~15 candidati esaminati, ho implementato le **3 uniche** che soddisfacevano contemporaneamente tutti questi criteri: (a) la logica esiste già nel codice, mancava solo l'esposizione; (b) nessun rischio di sicurezza o di dati nell'esporle; (c) risolvono un gap già identificato come 🔵 ESSENZIALE in `CONTROL_ROOM_ROADMAP.md`, non solo 🟣 UTILE. Ogni altro candidato fallisce almeno uno di questi tre criteri — implementarlo comunque avrebbe significato o inventare funzionalità nuove (vietato da questa sessione) o introdurre rischio senza necessità.

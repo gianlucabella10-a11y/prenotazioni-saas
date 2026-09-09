@@ -5,9 +5,11 @@ declare(strict_types=1);
 namespace App\Modules\Notifications\Infrastructure\Channels;
 
 use App\Models\Device;
+use App\Modules\Branding\Infrastructure\Models\BrandProfile;
 use App\Modules\Notifications\Application\Channels\ChannelDeliveryFailed;
 use App\Modules\Notifications\Application\Channels\NotificationChannel;
 use App\Modules\Notifications\Application\Channels\RecipientUnreachable;
+use App\Modules\Notifications\Application\FcmMessageBuilder;
 use App\Modules\Notifications\Application\TemplateRenderer;
 use App\Modules\Notifications\Infrastructure\Models\NotificationRecord;
 use App\Modules\Customers\Infrastructure\Models\Customer;
@@ -30,6 +32,7 @@ final readonly class FcmPushChannel implements NotificationChannel
         private HttpFactory $http,
         private Cache $cache,
         private TemplateRenderer $renderer,
+        private FcmMessageBuilder $builder,
     ) {
     }
 
@@ -42,13 +45,32 @@ final readonly class FcmPushChannel implements NotificationChannel
         }
 
         $message = $this->renderer->render($record);
+        $style = $this->pushStyle();
         $lastMessageId = null;
 
         foreach ($devices as $device) {
-            $lastMessageId = $this->sendToDevice($device, $message, $record);
+            $lastMessageId = $this->sendToDevice($device, $message, $record, $style);
         }
 
         return $lastMessageId;
+    }
+
+    /**
+     * Stile push del tenant corrente (Fase 7): il colore accent default è il
+     * primary del brand. Il job lega già il contesto tenant (TenantAwareJob).
+     *
+     * @return array{color: ?string, priority: string}
+     */
+    private function pushStyle(): array
+    {
+        $brand = BrandProfile::query()->first();
+        $config = (array) config('branding.default_notification');
+        $notification = (array) ($brand?->notification ?? []);
+
+        return [
+            'color' => $notification['color'] ?? $config['color'] ?? $brand?->primary_color,
+            'priority' => $notification['priority'] ?? $config['priority'] ?? 'high',
+        ];
     }
 
     /** @return \Illuminate\Support\Collection<int, Device> */
@@ -67,27 +89,18 @@ final readonly class FcmPushChannel implements NotificationChannel
         return Device::query()->where('user_id', $userId)->get();
     }
 
-    /** @param array{title: string, body: string} $message */
-    private function sendToDevice(Device $device, array $message, NotificationRecord $record): ?string
+    /**
+     * @param  array{title: string, body: string}  $message
+     * @param  array{color: ?string, priority: string}  $style
+     */
+    private function sendToDevice(Device $device, array $message, NotificationRecord $record, array $style): ?string
     {
         $projectId = (string) config('services.fcm.project_id');
 
         $response = $this->http
             ->withToken($this->accessToken())
             ->post("https://fcm.googleapis.com/v1/projects/{$projectId}/messages:send", [
-                'message' => [
-                    'token' => $device->fcm_token,
-                    'notification' => [
-                        'title' => $message['title'],
-                        'body' => $message['body'],
-                    ],
-                    // Data payload carries references only, never personal
-                    // data (push minimization — docs/33 #55).
-                    'data' => [
-                        'template_code' => $record->template_code,
-                        'appointment_uuid' => (string) ($record->payload['appointment_uuid'] ?? ''),
-                    ],
-                ],
+                'message' => $this->builder->build($device->fcm_token, $message, $record, $style),
             ]);
 
         if ($response->status() === 404 || str_contains($response->body(), 'UNREGISTERED')) {

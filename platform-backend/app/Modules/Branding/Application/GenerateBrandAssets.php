@@ -48,6 +48,12 @@ final readonly class GenerateBrandAssets
         'screenshot_phone' => [1080, 1920], // placeholder brandizzato
     ];
 
+    /** Favicon per build web/PWA: quadrate, sfondo trasparente come le icone. */
+    private const FAVICON = [
+        'favicon_32' => 32,
+        'favicon_16' => 16,
+    ];
+
     public function __construct(
         private CurrentTenant $currentTenant,
         private Config $config,
@@ -107,6 +113,10 @@ final readonly class GenerateBrandAssets
             foreach (self::STORE as $variant => [$width, $height]) {
                 $kind = $variant === 'feature_graphic' ? 'feature_graphic' : 'screenshot';
                 $generated[] = $this->render($image, $brand->id, $disk, $kind, $variant, $width, $height, $version, $bg, 0.28);
+            }
+
+            foreach (self::FAVICON as $variant => $size) {
+                $generated[] = $this->render($image, $brand->id, $disk, 'favicon', $variant, $size, $size, $version, null, 0.06);
             }
 
             imagedestroy($image);

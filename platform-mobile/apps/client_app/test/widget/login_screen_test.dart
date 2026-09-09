@@ -46,4 +46,17 @@ void main() {
     expect(find.text('Inserisci un indirizzo email valido'), findsOneWidget);
     expect(find.text('Inserisci la password'), findsOneWidget);
   });
+
+  testWidgets('password field can toggle its visibility', (tester) async {
+    await pumpLogin(tester);
+
+    // Hidden by default: the "show" affordance is present.
+    expect(find.byIcon(Icons.visibility_outlined), findsOneWidget);
+
+    await tester.tap(find.byIcon(Icons.visibility_outlined));
+    await tester.pumpAndSettle();
+
+    // After toggling, it offers to hide again.
+    expect(find.byIcon(Icons.visibility_off_outlined), findsOneWidget);
+  });
 }

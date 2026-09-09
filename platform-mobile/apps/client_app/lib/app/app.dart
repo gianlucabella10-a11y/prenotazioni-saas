@@ -48,14 +48,16 @@ class _ClientAppState extends ConsumerState<ClientApp> {
       }
     });
 
-    final theme = AppThemeBuilder.build(
-      config?.theme ?? BrandTheme.fallback(),
-      fontStyle: config?.fontStyle,
-    );
+    final tokens = config?.theme ?? BrandTheme.fallback();
+    final theme = AppThemeBuilder.build(tokens, fontStyle: config?.fontStyle);
+    final darkTheme =
+        AppThemeBuilder.buildDark(tokens, fontStyle: config?.fontStyle);
 
     return MaterialApp.router(
       title: config?.appName ?? '',
       theme: theme,
+      darkTheme: darkTheme,
+      themeMode: AppThemeBuilder.themeMode(tokens),
       debugShowCheckedModeBanner: false,
       locale: const Locale('it'),
       supportedLocales: const [Locale('it'), Locale('en')],

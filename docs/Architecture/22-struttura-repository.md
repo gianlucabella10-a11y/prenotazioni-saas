@@ -1,5 +1,7 @@
 # 22 — Struttura Repository
 
+> ⚠️ **Piano storico, non stato attuale.** Questo documento descrive la struttura pianificata *prima* dell'implementazione. Il repository reale è un **mono-repo singolo** (non tre repository separati come descritto sotto), con moduli backend diversi da quelli qui elencati (`Billing`, `Reporting`, `Compliance` non sono mai stati costruiti; `AppFactory`, `ControlRoom`, `Dashboard` esistono e non erano previsti qui). Scostamento completo, sezione per sezione: [`PROJECT_STRUCTURE.md`](../../PROJECT_STRUCTURE.md) §0 alla radice del repository. Per la struttura reale verificata sul codice: [`REAL_PROJECT_STATE.md`](../../REAL_PROJECT_STATE.md) e [`PROJECT_FREEZE_STATE.md`](../../PROJECT_FREEZE_STATE.md).
+
 ## 1. Strategia: tre repository
 
 | Repository | Contenuto | Razionale |

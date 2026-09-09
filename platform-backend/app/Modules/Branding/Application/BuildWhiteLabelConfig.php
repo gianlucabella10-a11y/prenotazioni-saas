@@ -90,6 +90,15 @@ final readonly class BuildWhiteLabelConfig
                 'build_number' => $release->build_number,
             ],
             'theme' => $brand->theme,
+            // Customer Experience (Fase 5): copy/immagini editoriali. Default di
+            // piattaforma + override del tenant → l'app "parla" col suo brand.
+            'content' => [
+                ...(array) config('branding.default_content'),
+                ...array_filter(
+                    (array) ($brand->content ?? []),
+                    static fn ($value): bool => $value !== null && $value !== '',
+                ),
+            ],
             'locale_default' => $tenant->locale,
             'features' => $tenant->features,
             'booking' => [
@@ -105,6 +114,7 @@ final readonly class BuildWhiteLabelConfig
             'social' => [
                 'instagram_url' => $brand->instagram_url,
                 'facebook_url' => $brand->facebook_url,
+                'tiktok_url' => $brand->tiktok_url,
                 'maps_url' => $this->mapsUrl($brand, $locationModels->first()),
                 'whatsapp' => $brand->whatsapp_number === null ? null : [
                     'number' => $brand->whatsapp_number,
@@ -116,7 +126,12 @@ final readonly class BuildWhiteLabelConfig
             'legal' => [
                 'privacy_policy_url' => $brand->privacy_policy_url,
                 'terms_url' => $brand->terms_url,
+                'cookie_url' => $brand->cookie_url,
                 'support_url' => $brand->support_url,
+            ],
+            // Anagrafica business mostrata nel footer legale della scheda.
+            'business' => [
+                'vat_number' => $brand->vat_number,
             ],
             'locations' => $locations,
         ];
@@ -170,11 +185,19 @@ final readonly class BuildWhiteLabelConfig
         return Storage::disk((string) config('branding.asset_disk', 'public'))->url($logo->disk_path);
     }
 
-    /** Explicit maps link, or a Google Maps search derived from the address. */
+    /**
+     * Explicit maps link, else a precise coordinate pin when the location has
+     * GPS (Fase 3), else a Google Maps search derived from the address.
+     */
     private function mapsUrl(BrandProfile $brand, ?Location $primary): ?string
     {
         if ($brand->maps_url !== null) {
             return $brand->maps_url;
+        }
+
+        if ($primary?->latitude !== null && $primary?->longitude !== null) {
+            return 'https://www.google.com/maps/search/?api=1&query='
+                .$primary->latitude.','.$primary->longitude;
         }
 
         if ($primary?->address === null) {

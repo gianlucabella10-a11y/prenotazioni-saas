@@ -26,6 +26,12 @@ class Appointment {
 
   DateTime get startsAtLocal => startsAtUtc.toLocal();
 
+  DateTime get endsAtLocal => endsAtUtc.toLocal();
+
+  /// Planned span (end − start), used by the confirmation recap and the
+  /// calendar link.
+  Duration get plannedDuration => endsAtUtc.difference(startsAtUtc);
+
   bool get isCancellable => status == 'confirmed' || status == 'requested';
 
   bool get isPendingApproval => status == 'requested';

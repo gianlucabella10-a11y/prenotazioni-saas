@@ -216,4 +216,31 @@ final class BookingFlowTest extends TestCase
             $this->authHeaders($actors['user'], $env['tenant']) + ['Idempotency-Key' => 'f-1'],
         )->assertStatus(422)->assertJsonPath('error.code', 'beyond_booking_window');
     }
+
+    public function test_customer_active_booking_quota_is_enforced(): void
+    {
+        Queue::fake();
+
+        $env = $this->provisionBookableTenant();
+        $actors = $this->createCustomerUser($env['tenant']);
+
+        // Booking Identity (Fase 4): tetto di 1 prenotazione attiva per cliente.
+        $this->bindTenant($env['tenant']);
+        $env['location']->forceFill([
+            'settings' => ['max_active_bookings_per_customer' => 1],
+        ])->save();
+
+        $this->postJson(
+            '/api/v1/appointments',
+            $this->bookingPayload($env, $this->bookableStart(3)),
+            $this->authHeaders($actors['user'], $env['tenant']) + ['Idempotency-Key' => 'q-1'],
+        )->assertCreated();
+
+        // Seconda prenotazione (slot diverso) → oltre il tetto.
+        $this->postJson(
+            '/api/v1/appointments',
+            $this->bookingPayload($env, $this->bookableStart(5)),
+            $this->authHeaders($actors['user'], $env['tenant']) + ['Idempotency-Key' => 'q-2'],
+        )->assertStatus(422)->assertJsonPath('error.code', 'booking_limit_reached');
+    }
 }

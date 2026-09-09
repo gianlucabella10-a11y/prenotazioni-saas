@@ -1,6 +1,8 @@
 # ENVIRONMENT_GUIDE
 
 > Separazione degli ambienti per la piattaforma white-label. **Mai mischiare** configurazioni: ogni ambiente ha il suo `.env` (backend) e i suoi `--dart-define` (app). Riferimento chiavi: `platform-backend/.env.example`.
+>
+> Documento di riferimento unico per l'argomento ambienti — consolida `ENVIRONMENT_SETUP.md`, `ENVIRONMENT_FINAL.md` e `REAL_BETA_ENVIRONMENT.md` (le tre versioni precedenti, che si dichiaravano a vicenda "complementari"/"estensione", ora in `docs/archive/environment/`).
 
 ## Ambienti
 | | LOCAL | STAGING | BETA | PRODUCTION |

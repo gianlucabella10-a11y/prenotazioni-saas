@@ -8,6 +8,7 @@ use App\Modules\AppFactory\Application\BuildDispatcher;
 use App\Modules\AppFactory\Application\BuildDispatchResult;
 use App\Modules\AppFactory\Application\BuildFailedException;
 use App\Modules\AppFactory\Infrastructure\Models\AppProject;
+use App\Modules\TenantManagement\Infrastructure\Models\Tenant;
 use Illuminate\Contracts\Config\Repository as Config;
 use Illuminate\Support\Facades\Storage;
 use RuntimeException;
@@ -110,9 +111,12 @@ final class LocalBuildDispatcher implements BuildDispatcher
     private function manifest(AppProject $project): array
     {
         $disk = (string) $this->config->get('app_factory.manifest_disk', 'local');
-        $path = "app_factory/{$project->uuid}/manifest-latest.json";
+        // Il manifest è scritto sotto l'UUID del TENANT (come GenerateAppPackage/
+        // ExportAppPackage), non del progetto: risolvilo dal tenant_id.
+        $tenantUuid = Tenant::query()->whereKey($project->tenant_id)->value('uuid');
+        $path = "app_factory/{$tenantUuid}/manifest-latest.json";
 
-        if (! Storage::disk($disk)->exists($path)) {
+        if ($tenantUuid === null || ! Storage::disk($disk)->exists($path)) {
             throw new RuntimeException('Manifest assente: genera il pacchetto prima della build.');
         }
 
