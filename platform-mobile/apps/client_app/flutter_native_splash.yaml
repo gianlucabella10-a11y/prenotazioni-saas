@@ -1,0 +1,12 @@
+# App Factory FASE 2B — splash native (Android 12+ e iOS launch) dal logo.
+# La sorgente (tool/app_factory/build/splash.png) è popolata da make_app.sh.
+# Eseguito a build-time:
+#   dart run flutter_native_splash:create --path=flutter_native_splash.yaml
+flutter_native_splash:
+  color: "#FFFFFF"
+  image: "tool/app_factory/build/splash.png"
+  android: true
+  ios: true
+  android_12:
+    image: "tool/app_factory/build/splash.png"
+    color: "#FFFFFF"

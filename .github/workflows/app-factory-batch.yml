@@ -1,0 +1,85 @@
+# App Factory — build a lotti della flotta (FASE 3, scala 100+)
+#
+# Costruisce/pubblica N app per-tenant in un solo run, riusando il workflow
+# per-tenant (app-factory-build) tramite una matrix. La lista dei tenant è
+# calcolata dal backend con `php artisan app:build-matrix` (registry): per il
+# "release train" si ricostruiscono solo le app stale (core precedente).
+#
+# 1 codebase, N configurazioni: nessun flavor, nessun fork. Manuale, non parte
+# da solo. Richiede gli stessi segreti di app-factory-build (vedi
+# APP_FACTORY_RELEASE_SECRETS.md).
+
+name: app-factory-batch
+
+on:
+  workflow_dispatch:
+    inputs:
+      platform:
+        description: "Piattaforme"
+        required: true
+        default: android
+        type: choice
+        options: [android, ios, both]
+      stale_only:
+        description: "Solo app stale (release train)"
+        required: false
+        default: true
+        type: boolean
+      limit:
+        description: "Max app per run (canary; vuoto = tutte)"
+        required: false
+        default: ""
+        type: string
+      android_track:
+        description: "Track Google Play"
+        required: false
+        default: internal
+        type: choice
+        options: [internal, alpha, beta, production]
+
+jobs:
+  # Calcola la matrice di tenant da costruire (registry → JSON).
+  matrix:
+    runs-on: ubuntu-latest
+    outputs:
+      tenants: ${{ steps.gen.outputs.tenants }}
+      count: ${{ steps.gen.outputs.count }}
+    steps:
+      - name: Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.BACKEND_SSH_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H "${{ secrets.BACKEND_SSH_HOST }}" >> ~/.ssh/known_hosts
+
+      - name: Build matrix from registry
+        id: gen
+        run: |
+          sudo apt-get update -y && sudo apt-get install -y jq
+          PLAT="${{ inputs.platform }}"
+          [ "$PLAT" = "both" ] && PLAT="android"   # la selezione è platform-agnostica
+          ARGS="--platform=$PLAT"
+          [ "${{ inputs.stale_only }}" = "true" ] && ARGS="$ARGS --stale-only"
+          [ -n "${{ inputs.limit }}" ] && ARGS="$ARGS --limit=${{ inputs.limit }}"
+          TENANTS=$(ssh "${{ secrets.BACKEND_SSH_USER }}@${{ secrets.BACKEND_SSH_HOST }}" \
+            "cd ${{ secrets.BACKEND_PATH }} && php artisan app:build-matrix $ARGS" | tail -1)
+          echo "tenants=$TENANTS" >> "$GITHUB_OUTPUT"
+          echo "count=$(echo "$TENANTS" | jq 'length')" >> "$GITHUB_OUTPUT"
+          echo "Tenant da costruire: $(echo "$TENANTS" | jq 'length')"
+
+  # Un job di build per tenant (riusa il workflow per-tenant). max-parallel
+  # limita la pressione sui runner (per iOS i macOS sono risorsa scarsa).
+  build:
+    needs: matrix
+    if: ${{ needs.matrix.outputs.count != '0' && needs.matrix.outputs.count != '' }}
+    strategy:
+      fail-fast: false
+      max-parallel: 3
+      matrix:
+        tenant: ${{ fromJSON(needs.matrix.outputs.tenants) }}
+    uses: ./.github/workflows/app-factory-build.yml
+    with:
+      tenant_uuid: ${{ matrix.tenant }}
+      platform: ${{ inputs.platform }}
+      android_track: ${{ inputs.android_track }}
+    secrets: inherit

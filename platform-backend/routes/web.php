@@ -2,6 +2,16 @@
 
 declare(strict_types=1);
 
+use App\Modules\AppFactory\Http\Controllers\AppProjectController;
+use App\Modules\AppFactory\Http\Controllers\BetaDownloadController;
+use App\Modules\ControlRoom\Http\Controllers\AuditLogController;
+use App\Modules\ControlRoom\Http\Controllers\BackupController;
+use App\Modules\ControlRoom\Http\Controllers\ControlRoomAuthController;
+use App\Modules\ControlRoom\Http\Controllers\HomeController as ControlRoomHomeController;
+use App\Modules\ControlRoom\Http\Controllers\LogViewerController;
+use App\Modules\ControlRoom\Http\Controllers\TenantBrandController;
+use App\Modules\ControlRoom\Http\Controllers\TenantInviteController;
+use App\Modules\ControlRoom\Http\Controllers\TenantsController;
 use App\Modules\Dashboard\Http\Controllers\AvailabilityController;
 use App\Modules\Dashboard\Http\Controllers\BookingsController;
 use App\Modules\Dashboard\Http\Controllers\BrandingController;
@@ -71,12 +81,93 @@ Route::prefix('dashboard')->group(function (): void {
 
             Route::get('/disponibilita', [AvailabilityController::class, 'index'])->name('dashboard.availability.index');
             Route::put('/disponibilita/orari-sede', [AvailabilityController::class, 'updateLocationHours'])->name('dashboard.availability.hours');
+            Route::put('/disponibilita/regole', [AvailabilityController::class, 'updateBookingPolicy'])->name('dashboard.availability.policy');
             Route::post('/disponibilita/chiusure', [AvailabilityController::class, 'storeException'])->name('dashboard.availability.exceptions.store');
             Route::delete('/disponibilita/chiusure/{uuid}', [AvailabilityController::class, 'destroyException'])->name('dashboard.availability.exceptions.destroy');
 
             Route::get('/personalizzazione', [BrandingController::class, 'index'])->name('dashboard.branding.index');
             Route::put('/personalizzazione/brand', [BrandingController::class, 'updateBrand'])->name('dashboard.branding.brand');
             Route::put('/personalizzazione/contatti', [BrandingController::class, 'updateContacts'])->name('dashboard.branding.contacts');
+            Route::post('/personalizzazione/logo', [BrandingController::class, 'uploadLogo'])->name('dashboard.branding.logo');
         });
     });
 });
+
+/*
+|--------------------------------------------------------------------------
+| Control Room — pannello proprietario super-admin (SOLO interno)
+|--------------------------------------------------------------------------
+| Superficie isolata dal dashboard cliente: guard `admin` dedicata +
+| middleware `control.admin`. Nessun tenant_admin/staff/customer entra qui.
+*/
+Route::prefix('control-room')->group(function (): void {
+    Route::middleware('guest:admin')->group(function (): void {
+        Route::get('/login', [ControlRoomAuthController::class, 'showLogin'])->name('control.login');
+        Route::post('/login', [ControlRoomAuthController::class, 'login'])
+            ->middleware('throttle:auth')->name('control.login.post');
+
+        Route::get('/mfa', [ControlRoomAuthController::class, 'showMfaChallenge'])->name('control.mfa.challenge');
+        Route::post('/mfa', [ControlRoomAuthController::class, 'verifyMfa'])
+            ->middleware('throttle:auth')->name('control.mfa.verify');
+        Route::get('/mfa/setup', [ControlRoomAuthController::class, 'showMfaSetup'])->name('control.mfa.setup');
+        Route::post('/mfa/setup', [ControlRoomAuthController::class, 'confirmMfaSetup'])
+            ->middleware('throttle:auth')->name('control.mfa.confirm');
+    });
+
+    Route::middleware(['auth:admin', 'control.admin'])->group(function (): void {
+        Route::post('/logout', [ControlRoomAuthController::class, 'logout'])->name('control.logout');
+
+        Route::get('/', [ControlRoomHomeController::class, 'index'])->name('control.home');
+        Route::get('/clienti', [TenantsController::class, 'index'])->name('control.tenants.index');
+        Route::get('/clienti/nuovo', [TenantsController::class, 'create'])->name('control.tenants.create');
+        Route::post('/clienti', [TenantsController::class, 'store'])->name('control.tenants.store');
+        Route::get('/clienti/{uuid}', [TenantsController::class, 'show'])->name('control.tenants.show');
+        Route::post('/clienti/{uuid}/sospendi', [TenantsController::class, 'suspend'])->name('control.tenants.suspend');
+        Route::post('/clienti/{uuid}/riattiva', [TenantsController::class, 'reactivate'])->name('control.tenants.reactivate');
+        Route::post('/clienti/{uuid}/attiva', [TenantsController::class, 'activate'])->name('control.tenants.activate');
+        Route::post('/clienti/{uuid}/termina', [TenantsController::class, 'terminate'])->name('control.tenants.terminate');
+
+        Route::post('/clienti/{uuid}/invito/rigenera', [TenantInviteController::class, 'regenerate'])->name('control.tenants.invite.regenerate');
+        Route::post('/clienti/{uuid}/invito/revoca', [TenantInviteController::class, 'revoke'])->name('control.tenants.invite.revoke');
+
+        Route::put('/clienti/{uuid}/brand', [TenantBrandController::class, 'update'])->name('control.tenants.brand');
+        Route::post('/clienti/{uuid}/logo', [TenantBrandController::class, 'uploadLogo'])->name('control.tenants.logo');
+
+        // App Factory (FASE 1): App Project + generazione manifest.
+        Route::get('/apps', [AppProjectController::class, 'index'])->name('control.apps.index');
+        // Osservabilità flotta (FASE 3): prima di /apps/{uuid} per non essere oscurata.
+        Route::get('/apps/flotta', [AppProjectController::class, 'fleet'])->name('control.apps.fleet');
+        Route::post('/apps/flotta/ricostruisci', [AppProjectController::class, 'rebuildFleet'])->name('control.apps.fleet.rebuild');
+        Route::get('/apps/{uuid}', [AppProjectController::class, 'show'])->name('control.apps.show');
+        Route::put('/apps/{uuid}/template', [AppProjectController::class, 'updateTemplate'])->name('control.apps.template');
+        Route::post('/apps/{uuid}/genera', [AppProjectController::class, 'generate'])->name('control.apps.generate');
+        Route::post('/apps/{uuid}/build', [AppProjectController::class, 'dispatchBuild'])->name('control.apps.build');
+        Route::post('/apps/{uuid}/beta-link/{build}', [AppProjectController::class, 'betaLink'])->name('control.apps.beta');
+        Route::post('/apps/{uuid}/beta-link/{token}/revoca', [AppProjectController::class, 'revokeBetaLink'])->name('control.apps.beta.revoke');
+        Route::post('/apps/{uuid}/testers', [AppProjectController::class, 'inviteTester'])->name('control.apps.testers.invite');
+        Route::patch('/apps/{uuid}/testers/{tester}', [AppProjectController::class, 'updateTester'])->name('control.apps.testers.update');
+        Route::post('/apps/{uuid}/versioni', [AppProjectController::class, 'storeVersion'])->name('control.apps.versions.store');
+        Route::patch('/apps/{uuid}/versioni/{version}', [AppProjectController::class, 'updateVersion'])->name('control.apps.versions.update');
+        Route::post('/apps/{uuid}/rollback', [AppProjectController::class, 'rollbackAssets'])->name('control.apps.rollback');
+        Route::get('/apps/{uuid}/download/{build}', [AppProjectController::class, 'download'])->name('control.apps.download');
+        Route::get('/apps/{uuid}/package', [AppProjectController::class, 'downloadPackage'])->name('control.apps.package');
+
+        Route::get('/audit', [AuditLogController::class, 'index'])->name('control.audit.index');
+
+        Route::get('/backup', [BackupController::class, 'index'])->name('control.backup.index');
+        Route::post('/backup', [BackupController::class, 'store'])->name('control.backup.store');
+
+        Route::get('/logs', [LogViewerController::class, 'index'])->name('control.logs.index');
+    });
+});
+
+/*
+|--------------------------------------------------------------------------
+| Distribuzione beta privata (FASE 4)
+|--------------------------------------------------------------------------
+| Link con TOKEN opaco (scadenza + limite + conteggio + revoca): l'esercente
+| scarica l'APK senza login. Nessun tenant in sessione; l'accesso è garantito
+| dal token segreto (validato lato controller).
+*/
+Route::get('/beta/download/{token}', [BetaDownloadController::class, 'download'])
+    ->name('beta.download');

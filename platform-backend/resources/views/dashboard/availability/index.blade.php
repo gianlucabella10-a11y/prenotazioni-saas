@@ -3,6 +3,44 @@
 @section('content')
 
 <div class="card">
+    <h2>Regole di prenotazione</h2>
+    <p class="muted" style="margin-top:0">
+        Finestra, preavviso, durata slot e cancellazione. Valgono da subito, senza aggiornare l'app.
+    </p>
+    <form method="post" action="{{ route('dashboard.availability.policy') }}">
+        @csrf @method('PUT')
+        <div class="row">
+            <div>
+                <label for="booking_window_days">Finestra prenotabile (giorni)</label>
+                <input id="booking_window_days" type="number" name="booking_window_days" min="1" max="365"
+                       value="{{ old('booking_window_days', $location->booking_window_days) }}">
+            </div>
+            <div>
+                <label for="slot_granularity_minutes">Durata slot (minuti)</label>
+                <input id="slot_granularity_minutes" type="number" name="slot_granularity_minutes" min="5" max="120" step="5"
+                       value="{{ old('slot_granularity_minutes', $location->slot_granularity_minutes) }}">
+            </div>
+        </div>
+        <div class="row">
+            <div>
+                <label for="min_notice_minutes">Preavviso minimo (minuti)</label>
+                <input id="min_notice_minutes" type="number" name="min_notice_minutes" min="0" max="10080"
+                       value="{{ old('min_notice_minutes', $location->min_notice_minutes) }}">
+            </div>
+            <div>
+                <label for="cancellation_cutoff_minutes">Cancellazione entro (minuti prima)</label>
+                <input id="cancellation_cutoff_minutes" type="number" name="cancellation_cutoff_minutes" min="0" max="10080"
+                       value="{{ old('cancellation_cutoff_minutes', $location->cancellation_cutoff_minutes) }}">
+            </div>
+        </div>
+        <label for="max_active_bookings_per_customer">Max prenotazioni attive per cliente (0 = illimitate)</label>
+        <input id="max_active_bookings_per_customer" type="number" name="max_active_bookings_per_customer" min="0" max="50"
+               value="{{ old('max_active_bookings_per_customer', data_get($location->settings, 'max_active_bookings_per_customer', 0)) }}">
+        <button class="btn mt" type="submit">Salva regole</button>
+    </form>
+</div>
+
+<div class="card">
     <h2>Chiusure e ferie</h2>
     <p class="muted" style="margin-top:0">
         Blocca giorni o fasce orarie: gli slot spariscono subito dall'app.

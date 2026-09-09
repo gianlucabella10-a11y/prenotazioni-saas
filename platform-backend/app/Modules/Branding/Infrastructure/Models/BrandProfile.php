@@ -27,6 +27,8 @@ class BrandProfile extends Model
     {
         return [
             'theme' => 'array',
+            'content' => 'array',
+            'notification' => 'array',
             'contrast_validated' => 'bool',
         ];
     }

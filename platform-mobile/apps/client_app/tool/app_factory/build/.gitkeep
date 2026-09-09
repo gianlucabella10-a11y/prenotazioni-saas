@@ -1,0 +1,3 @@
+# Directory di lavoro di make_app.sh: qui vengono copiate icon.png/splash.png
+# del tenant (dall'Asset Factory) prima di generare gli asset nativi.
+# I contenuti generati NON vanno committati (sono per-build).

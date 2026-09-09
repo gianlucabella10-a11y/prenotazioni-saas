@@ -4,11 +4,15 @@ declare(strict_types=1);
 
 namespace App\Modules\Dashboard\Http\Controllers;
 
+use App\Foundation\Tenancy\CurrentTenant;
+use App\Foundation\Tenancy\TenantRegistry;
+use App\Modules\Branding\Infrastructure\Models\BrandProfile;
 use App\Modules\Catalog\Infrastructure\Models\Location;
 use App\Modules\Scheduling\Application\AvailabilityCacheVersion;
 use App\Modules\Scheduling\Infrastructure\Models\ScheduleException;
 use App\Modules\Staff\Infrastructure\Models\StaffMember;
 use DateTimeImmutable;
+use DateTimeZone;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
@@ -85,6 +89,76 @@ final class AvailabilityController extends Controller
         });
 
         return back()->with('status', 'Orari della sede aggiornati.');
+    }
+
+    /**
+     * Booking Identity (Fase 4): regole di prenotazione della sede — finestra,
+     * preavviso, granularità slot, taglio cancellazione, e max prenotazioni
+     * attive per cliente (0 = illimitato, in `settings`). I campi esistevano
+     * sul modello ma non erano modificabili: qui li esponiamo. `booking_window`
+     * e `cancellation_cutoff` viaggiano in GET /app/config → bump config_version.
+     */
+    public function updateBookingPolicy(
+        Request $request,
+        AvailabilityCacheVersion $cache,
+        TenantRegistry $registry,
+        CurrentTenant $tenant,
+    ): RedirectResponse {
+        $data = $request->validate([
+            'booking_window_days' => ['required', 'integer', 'min:1', 'max:365'],
+            'min_notice_minutes' => ['required', 'integer', 'min:0', 'max:10080'],
+            'slot_granularity_minutes' => ['required', 'integer', 'min:5', 'max:120'],
+            'cancellation_cutoff_minutes' => ['required', 'integer', 'min:0', 'max:10080'],
+            'max_active_bookings_per_customer' => ['nullable', 'integer', 'min:0', 'max:50'],
+        ], [], [
+            'booking_window_days' => 'finestra di prenotazione',
+            'slot_granularity_minutes' => 'granularità slot',
+        ]);
+
+        $location = Location::query()->orderBy('id')->firstOrFail();
+
+        $settings = $location->settings ?? [];
+        $max = (int) ($data['max_active_bookings_per_customer'] ?? 0);
+
+        if ($max > 0) {
+            $settings['max_active_bookings_per_customer'] = $max;
+        } else {
+            unset($settings['max_active_bookings_per_customer']);
+        }
+
+        $location->update([
+            'booking_window_days' => $data['booking_window_days'],
+            'min_notice_minutes' => $data['min_notice_minutes'],
+            'slot_granularity_minutes' => $data['slot_granularity_minutes'],
+            'cancellation_cutoff_minutes' => $data['cancellation_cutoff_minutes'],
+            'settings' => $settings,
+        ]);
+
+        // Le regole cambiano il calcolo slot: invalida la cache per tutti gli
+        // operatori sulla finestra vicina (limitata a 60g per sicurezza).
+        $this->bumpPolicyWindow($cache, $location);
+
+        // La sede viaggia nel config runtime: invalida l'ETag del client.
+        BrandProfile::query()->firstOrFail()->bumpConfigVersion();
+        $registry->forget($tenant->id());
+
+        return back()->with('status', 'Regole di prenotazione aggiornate: valgono da subito.');
+    }
+
+    /** Bump della cache slot per ogni operatore su oggi..+min(finestra, 60). */
+    private function bumpPolicyWindow(AvailabilityCacheVersion $cache, Location $location): void
+    {
+        $today = new DateTimeImmutable('today', new DateTimeZone($location->timezone));
+        $days = min($location->booking_window_days, 60);
+
+        $dates = [];
+        for ($offset = 0; $offset <= $days; $offset++) {
+            $dates[] = $today->modify("+{$offset} day")->format('Y-m-d');
+        }
+
+        foreach (StaffMember::query()->pluck('id') as $staffId) {
+            $cache->bumpMany($location->tenant_id, (int) $staffId, $dates);
+        }
     }
 
     /** Crea un'eccezione: ferie/chiusura, di sede o di singolo operatore. */

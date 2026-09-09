@@ -1,0 +1,56 @@
+# CI — qualità su ogni push/PR (FASE 3): test backend + analyze/test Flutter.
+# Separazione ambienti: gira su `main` (production) e `staging`. La build/
+# distribuzione delle app è in workflow dedicati (app-factory-build/-beta).
+
+name: ci
+
+on:
+  push:
+    branches: [main, staging]
+  pull_request:
+    branches: [main, staging]
+
+env:
+  FLUTTER_VERSION: "3.44.2"
+
+jobs:
+  backend:
+    name: Laravel (php artisan test)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: platform-backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.4"
+          extensions: gd, zip, sqlite3, pdo_sqlite, mbstring
+          coverage: none
+      - name: Composer install
+        run: composer install --no-interaction --prefer-dist --no-progress
+      - name: Prepare environment
+        run: |
+          cp .env.example .env
+          php artisan key:generate
+      - name: Pint (lint)
+        run: ./vendor/bin/pint --test
+      - name: Tests
+        run: php artisan test
+
+  mobile:
+    name: Flutter (analyze + test)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: platform-mobile/apps/client_app
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with: { flutter-version: "${{ env.FLUTTER_VERSION }}", cache: true }
+      - name: Pub get
+        run: flutter pub get
+      - name: Analyze
+        run: flutter analyze
+      - name: Test
+        run: flutter test

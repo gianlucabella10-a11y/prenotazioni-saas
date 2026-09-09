@@ -31,6 +31,9 @@ platform-backend/storage/framework/views/*.php
 # --- Screenshot di analisi (riferimento, non codice) ---
 .screens-analysis/
 
+# --- Backup del centro operativo (dati reali, mai in git) ---
+/backups/
+
 # --- macOS / editor ---
 .DS_Store
 .idea/

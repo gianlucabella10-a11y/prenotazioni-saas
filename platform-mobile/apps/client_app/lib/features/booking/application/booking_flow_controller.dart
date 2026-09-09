@@ -3,6 +3,7 @@ import 'package:uuid/uuid.dart';
 
 import '../../../app/providers.dart';
 import '../../../core/network/api_failure.dart';
+import '../../catalog/domain/service.dart';
 import '../../white_label/domain/white_label_config.dart';
 import '../domain/appointment.dart';
 import '../domain/availability.dart';
@@ -200,6 +201,65 @@ final bookingFlowProvider =
     NotifierProvider<BookingFlowController, BookingFlowState>(
   BookingFlowController.new,
 );
+
+/// Aggregate of the current selection — count, total price and total duration
+/// — derived once from the flow + the loaded catalog. Both the services
+/// summary and the confirm button read it, so the total lives in exactly one
+/// place (no duplicated price math across screens).
+class BookingSelectionSummary {
+  const BookingSelectionSummary({
+    required this.count,
+    required this.totalPriceCents,
+    required this.totalDurationMinutes,
+    required this.currency,
+  });
+
+  final int count;
+  final int totalPriceCents;
+  final int totalDurationMinutes;
+  final String currency;
+
+  bool get isEmpty => count == 0;
+
+  static const empty = BookingSelectionSummary(
+    count: 0,
+    totalPriceCents: 0,
+    totalDurationMinutes: 0,
+    currency: 'EUR',
+  );
+}
+
+final bookingSelectionSummaryProvider = Provider<BookingSelectionSummary>((ref) {
+  final selected =
+      ref.watch(bookingFlowProvider.select((s) => s.selectedVariantUuids));
+  final services = ref.watch(servicesProvider).value;
+
+  if (services == null || selected.isEmpty) {
+    return BookingSelectionSummary.empty;
+  }
+
+  final wanted = selected.toSet();
+  var priceCents = 0;
+  var durationMinutes = 0;
+  var currency = BookingSelectionSummary.empty.currency;
+
+  for (final service in services) {
+    for (final variant in service.variants) {
+      if (wanted.contains(variant.uuid)) {
+        priceCents += variant.priceCents;
+        durationMinutes += variant.durationMinutes;
+        currency = variant.currency;
+      }
+    }
+  }
+
+  return BookingSelectionSummary(
+    count: selected.length,
+    totalPriceCents: priceCents,
+    totalDurationMinutes: durationMinutes,
+    currency: currency,
+  );
+});
 
 /// Availability for the current selection, keyed by the parameters so day
 /// changes refetch naturally. Kept outside the flow state: it is server

@@ -43,6 +43,14 @@ return [
             'provider' => 'users',
         ],
 
+        // Guard dedicata della Control Room proprietaria (solo super admin).
+        // Sessione separata da `web`: una sessione del dashboard cliente non
+        // può MAI concedere l'accesso alla piattaforma.
+        'admin' => [
+            'driver' => 'session',
+            'provider' => 'users',
+        ],
+
         // Stateless JWT guard for the mobile/API surface (docs/26 §3).
         'api' => [
             'driver' => 'jwt',

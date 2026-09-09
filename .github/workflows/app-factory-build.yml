@@ -1,0 +1,209 @@
+# App Factory — build & pubblicazione per-tenant (FASE 2C)
+#
+# Una sola codebase Flutter, N configurazioni: questo workflow compila, firma e
+# pubblica l'app di UN tenant a partire dal suo manifest 2.0 (prodotto da
+# `php artisan app:generate {uuid}`). Nessun flavor, nessun fork.
+#
+# È manuale (workflow_dispatch) e NON parte da solo. Richiede i segreti elencati
+# in APP_FACTORY_RELEASE_SECRETS.md. La firma Android è applicata dal
+# build.gradle.kts via env; iOS richiede l'account Apple Developer DEL CLIENTE.
+#
+# Stato pipeline tracciato a ritroso nel backend via `php artisan app:build-record`.
+
+name: app-factory-build
+
+on:
+  workflow_dispatch:
+    inputs:
+      tenant_uuid:
+        description: "UUID del tenant (App Project)"
+        required: true
+        type: string
+      platform:
+        description: "Piattaforme da costruire"
+        required: true
+        default: both
+        type: choice
+        options: [android, ios, both]
+      android_track:
+        description: "Track Google Play"
+        required: false
+        default: internal
+        type: choice
+        options: [internal, alpha, beta, production]
+  # Riusabile dalla CI matrix (app-factory-batch) per costruire la flotta (FASE 3).
+  workflow_call:
+    inputs:
+      tenant_uuid:
+        required: true
+        type: string
+      platform:
+        required: false
+        default: both
+        type: string
+      android_track:
+        required: false
+        default: internal
+        type: string
+
+env:
+  FLUTTER_VERSION: "3.44.2"
+  APP_DIR: platform-mobile/apps/client_app
+
+jobs:
+  # 1) Genera/recupera manifest 2.0 + asset derivati dal backend e li espone
+  #    come artifact per i job di build. La generazione è idempotente.
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      package_name: ${{ steps.read.outputs.package_name }}
+      bundle_id: ${{ steps.read.outputs.bundle_id }}
+      app_name: ${{ steps.read.outputs.app_name }}
+      version: ${{ steps.read.outputs.version }}
+    steps:
+      - name: Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.BACKEND_SSH_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H "${{ secrets.BACKEND_SSH_HOST }}" >> ~/.ssh/known_hosts
+
+      - name: Generate package on backend (idempotente)
+        env:
+          SSH: ssh ${{ secrets.BACKEND_SSH_USER }}@${{ secrets.BACKEND_SSH_HOST }}
+        run: |
+          $SSH "cd ${{ secrets.BACKEND_PATH }} && php artisan app:generate ${{ inputs.tenant_uuid }}"
+
+      - name: Fetch manifest + assets
+        run: |
+          mkdir -p build_input/assets
+          scp "${{ secrets.BACKEND_SSH_USER }}@${{ secrets.BACKEND_SSH_HOST }}:${{ secrets.BACKEND_PATH }}/storage/app/private/app_factory/${{ inputs.tenant_uuid }}/manifest-latest.json" build_input/manifest.json
+          rsync -az "${{ secrets.BACKEND_SSH_USER }}@${{ secrets.BACKEND_SSH_HOST }}:${{ secrets.BACKEND_PATH }}/storage/app/public/brand/" build_input/assets/brand/
+
+      - name: Read identity from manifest
+        id: read
+        run: |
+          sudo apt-get update -y && sudo apt-get install -y jq
+          M=build_input/manifest.json
+          {
+            echo "package_name=$(jq -r '.app_identity.package_name' "$M")"
+            echo "bundle_id=$(jq -r '.app_identity.bundle_id' "$M")"
+            echo "app_name=$(jq -r '.app_identity.name // .app_identity.store_name' "$M")"
+            echo "version=$(jq -r '.metadata.version // "1.0.0+1"' "$M")"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Upload build input
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-input
+          path: build_input/
+          retention-days: 1
+
+  # 2) Android: AAB firmato → Google Play (track interno di default).
+  android:
+    needs: prepare
+    if: ${{ inputs.platform == 'android' || inputs.platform == 'both' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with: { name: build-input, path: build_input }
+
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: "17" }
+      - uses: subosito/flutter-action@v2
+        with: { flutter-version: "${{ env.FLUTTER_VERSION }}", cache: true }
+
+      - name: Decode Android keystore
+        run: echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > "${{ github.workspace }}/release.jks"
+
+      - name: Prepare + build signed AAB
+        working-directory: ${{ env.APP_DIR }}
+        env:
+          ANDROID_KEYSTORE_PATH: ${{ github.workspace }}/release.jks
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          sudo apt-get update -y && sudo apt-get install -y jq
+          flutter pub get
+          bash tool/app_factory/make_app.sh \
+            --manifest "${{ github.workspace }}/build_input/manifest.json" \
+            --assets-dir "${{ github.workspace }}/build_input/assets" \
+            --platform android --build
+
+      # Canale BETA (opzionale): distribuzione privata ai tester via Firebase App
+      # Distribution. Attivo solo se è impostato il secret FIREBASE_APP_ID_ANDROID;
+      # non sostituisce lo store. Vedi BETA_RELEASE.md.
+      - name: Distribute beta (Firebase App Distribution)
+        if: ${{ env.FIREBASE_APP_ID != '' }}
+        env:
+          FIREBASE_APP_ID: ${{ secrets.FIREBASE_APP_ID_ANDROID }}
+        uses: wzieba/Firebase-Distribution-Github-Action@v1
+        with:
+          appId: ${{ secrets.FIREBASE_APP_ID_ANDROID }}
+          serviceCredentialsFileContent: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
+          groups: beta-testers
+          file: ${{ env.APP_DIR }}/build/app/outputs/bundle/release/app-release.aab
+
+      - name: Upload to Google Play
+        if: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON != '' }}
+        uses: r0adkll/upload-google-play@v1
+        with:
+          serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+          packageName: ${{ needs.prepare.outputs.package_name }}
+          releaseFiles: ${{ env.APP_DIR }}/build/app/outputs/bundle/release/app-release.aab
+          track: ${{ inputs.android_track }}
+          status: completed
+
+      - name: Record build status (backend)
+        if: ${{ always() }}
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.BACKEND_SSH_KEY }}" > ~/.ssh/id_ed25519 && chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H "${{ secrets.BACKEND_SSH_HOST }}" >> ~/.ssh/known_hosts
+          STATUS=${{ job.status == 'success' && 'published' || 'failed' }}
+          ssh "${{ secrets.BACKEND_SSH_USER }}@${{ secrets.BACKEND_SSH_HOST }}" \
+            "cd ${{ secrets.BACKEND_PATH }} && php artisan app:build-record ${{ inputs.tenant_uuid }} android $STATUS --app-version='${{ needs.prepare.outputs.version }}' --artifact='play:${{ inputs.android_track }}'"
+
+  # 3) iOS: IPA firmato → TestFlight. Richiede l'account Apple Developer DEL
+  #    CLIENTE (linee guida 4.2.6/4.3): la firma usa una API key App Store Connect.
+  ios:
+    needs: prepare
+    if: ${{ inputs.platform == 'ios' || inputs.platform == 'both' }}
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with: { name: build-input, path: build_input }
+
+      - uses: subosito/flutter-action@v2
+        with: { flutter-version: "${{ env.FLUTTER_VERSION }}", cache: true }
+
+      - name: Prepare native identity + build IPA
+        working-directory: ${{ env.APP_DIR }}
+        run: |
+          brew install jq || true
+          flutter pub get
+          bash tool/app_factory/make_app.sh \
+            --manifest "${{ github.workspace }}/build_input/manifest.json" \
+            --assets-dir "${{ github.workspace }}/build_input/assets" \
+            --platform ios --build
+
+      - name: Upload to TestFlight
+        uses: apple-actions/upload-testflight-build@v1
+        with:
+          app-path: ${{ env.APP_DIR }}/build/ios/ipa/client_app.ipa
+          issuer-id: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          api-key-id: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          api-private-key: ${{ secrets.APP_STORE_CONNECT_PRIVATE_KEY }}
+
+      - name: Record build status (backend)
+        if: ${{ always() }}
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.BACKEND_SSH_KEY }}" > ~/.ssh/id_ed25519 && chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H "${{ secrets.BACKEND_SSH_HOST }}" >> ~/.ssh/known_hosts
+          STATUS=${{ job.status == 'success' && 'published' || 'failed' }}
+          ssh "${{ secrets.BACKEND_SSH_USER }}@${{ secrets.BACKEND_SSH_HOST }}" \
+            "cd ${{ secrets.BACKEND_PATH }} && php artisan app:build-record ${{ inputs.tenant_uuid }} ios $STATUS --app-version='${{ needs.prepare.outputs.version }}' --artifact='testflight'"

@@ -74,7 +74,7 @@ void main() {
     expect(find.text('privacy policy'), findsOneWidget);
   });
 
-  testWidgets('verify screen shows the email and submits the 6-digit code',
+  testWidgets('verify screen shows the email and auto-submits the 6-digit code',
       (tester) async {
     _UnverifiedSession.submittedCodes.clear();
 
@@ -82,7 +82,7 @@ void main() {
 
     expect(find.textContaining('cliente@example.com'), findsOneWidget);
 
-    // Short code is rejected client-side.
+    // Short code is rejected client-side, inline, with nothing submitted.
     await tester.enterText(find.byType(TextField), '123');
     await tester.tap(find.text('Verifica'));
     await tester.pumpAndSettle();
@@ -90,9 +90,8 @@ void main() {
     expect(find.text('Inserisci il codice di 6 cifre.'), findsOneWidget);
     expect(_UnverifiedSession.submittedCodes, isEmpty);
 
-    // Full code is submitted to the session controller.
+    // The sixth digit auto-submits — no button hunt required.
     await tester.enterText(find.byType(TextField), '123456');
-    await tester.tap(find.text('Verifica'));
     await tester.pumpAndSettle();
 
     expect(_UnverifiedSession.submittedCodes, ['123456']);

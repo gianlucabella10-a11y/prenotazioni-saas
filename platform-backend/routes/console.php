@@ -16,3 +16,12 @@ Schedule::command('notifications:dispatch-due')
     ->everyFifteenMinutes()
     ->onOneServer()
     ->withoutOverlapping();
+
+// Backup automatico giornaliero (AUTOMATION_CATALOG.md #1 — la scelta di
+// automazione a più alto rapporto beneficio/costo identificata nella linea
+// di audit precedente). Retention integrata in CreatePlatformBackup evita
+// che il disco si riempia di backup indefinitamente.
+Schedule::command('platform:backup')
+    ->daily()
+    ->onOneServer()
+    ->withoutOverlapping();
